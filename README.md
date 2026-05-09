@@ -1,0 +1,45 @@
+```
+└── 📁backend
+    └── 📁src
+        └── 📁controllers
+            ├── accidentes.controller.js
+        └── 📁db
+            ├── pool.js
+        └── 📁integrations
+            ├── sratma.client.js
+        └── 📁jobs
+            ├── sratmaIngest.job.js
+        └── 📁reactive
+            ├── eventBus.js
+            ├── simulator.js
+        └── 📁repositories
+            ├── accidentes.repository.js
+            ├── distritos.repository.js
+        └── 📁routes
+            ├── accidentes.routes.js
+            ├── distritos.routes.js
+            ├── stream.routes.js
+        └── 📁scripts
+            ├── import_distritos_geojson.js
+        └── 📁services
+            ├── accidentes.service.js
+        └── 📁utils
+            ├── pool.js
+        ├── app.js
+        ├── server.js
+    ├── .env
+    ├── package-lock.json
+    └── package.json
+└── 📁data
+└── 📁database
+    └── init.sql
+    └── seed.sql
+└── 📁docs
+└── 📁frontend
+    └── 📁data
+        ├── peru_distrital_simple.geojson
+    └── 📁vendor
+        ├── osmtogeojson.js
+    ├── app.js
+    └── index.html
+```

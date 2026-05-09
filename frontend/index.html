@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>GeoRisk Analytics - Mapa</title>
+
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    />
+
+    <style>
+      body {
+        margin: 0;
+        font-family: system-ui, Arial, sans-serif;
+      }
+      #topbar {
+        padding: 10px 12px;
+        display: flex;
+        gap: 12px;
+        align-items: end;
+        border-bottom: 1px solid #ddd;
+      }
+      #map {
+        height: calc(100vh - 78px);
+      }
+      label {
+        display: block;
+        font-size: 12px;
+        color: #333;
+      }
+      select {
+        padding: 6px;
+      }
+      #kpis {
+        margin-left: auto;
+        font-size: 13px;
+      }
+      .kpi {
+        display: inline-block;
+        margin-left: 12px;
+      }
+      .dot {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        margin-right: 6px;
+        vertical-align: middle;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="topbar">
+      <div>
+        <label>Distrito</label>
+        <select id="distrito">
+          <option value="">(Todos)</option>
+          <option value="150122">Miraflores</option>
+          <option value="150131">San Isidro</option>
+          <option value="150140">Santiago de Surco</option>
+          <option value="150115">La Victoria</option>
+          <option value="150808">Lima</option>
+          <option value="150133">San Juan de Miraflores</option>
+          <option value="SRATMA">SRATMA (Perú)</option>
+        </select>
+      </div>
+
+      <div>
+        <label>Gravedad</label>
+        <select id="gravedad">
+          <option value="">(Todas)</option>
+          <option>Baja</option>
+          <option>Media</option>
+          <option>Alta</option>
+        </select>
+      </div>
+
+      <div>
+        <button id="btnCargar">Cargar</button>
+      </div>
+
+      <div id="kpis">
+        <span class="kpi"
+          ><span class="dot" style="background: #444"></span>Total:
+          <b id="kpiTotal">0</b></span
+        >
+        <span class="kpi"
+          ><span class="dot" style="background: #2ecc71"></span>Baja:
+          <b id="kpiBaja">0</b></span
+        >
+        <span class="kpi"
+          ><span class="dot" style="background: #f1c40f"></span>Media:
+          <b id="kpiMedia">0</b></span
+        >
+        <span class="kpi"
+          ><span class="dot" style="background: #e74c3c"></span>Alta:
+          <b id="kpiAlta">0</b></span
+        >
+        <span class="kpi">Promedio: <b id="kpiProm">0</b></span>
+      </div>
+    </div>
+
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="./vendor/osmtogeojson.js"></script>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
