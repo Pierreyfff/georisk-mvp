@@ -17,6 +17,32 @@ async function getAccidentes() {
   return repo.findAll();
 }
 
+async function accidenteExists({ fuente, external_id }) {
+  if (!fuente || external_id == null) return false;
+  return repo.existsByFuenteExternalId(fuente, external_id);
+}
+
+async function getLastExternalIdByFuente(fuente) {
+  if (!fuente) return null;
+  return repo.getMaxExternalIdByFuente(fuente);
+}
+
+async function getLastFechaByFuente(fuente) {
+  if (!fuente) return null;
+  return repo.getMaxFechaByFuente(fuente);
+}
+
+/* ===== NUEVO: audit getters ===== */
+async function getAccidenteById(id) {
+  const row = await repo.findById(id);
+  return row;
+}
+
+async function getAccidenteByFuenteExternalId(fuente, external_id) {
+  const row = await repo.findByFuenteExternalId(fuente, external_id);
+  return row;
+}
+
 async function createAccidente(accidente) {
   const {
     fecha,
@@ -138,4 +164,9 @@ module.exports = {
   getAccidentes,
   createAccidente,
   getAccidentesFiltrados,
+  accidenteExists,
+  getLastExternalIdByFuente,
+  getLastFechaByFuente,
+  getAccidenteById,
+  getAccidenteByFuenteExternalId,
 };

@@ -23,6 +23,7 @@ async function findAll() {
     SELECT
       id, fecha, hora, distrito, ubigeo, tipo, gravedad,
       fallecidos, lesionados, fuente, external_id, raw,
+      ingested_at, updated_at,
       ST_Y(ubicacion::geometry) AS lat,
       ST_X(ubicacion::geometry) AS lng
     FROM accidentes
@@ -31,6 +32,38 @@ async function findAll() {
 
   const { rows } = await pool.query(query);
   return rows;
+}
+
+async function existsByFuenteExternalId(fuente, externalId) {
+  const sql = `
+    SELECT 1
+    FROM accidentes
+    WHERE fuente = $1 AND external_id = $2
+    LIMIT 1;
+  `;
+  const values = [String(fuente), Number(externalId)];
+  const { rowCount } = await pool.query(sql, values);
+  return rowCount > 0;
+}
+
+async function getMaxExternalIdByFuente(fuente) {
+  const sql = `
+    SELECT MAX(external_id)::bigint AS max_id
+    FROM accidentes
+    WHERE fuente = $1;
+  `;
+  const { rows } = await pool.query(sql, [String(fuente)]);
+  return rows[0]?.max_id != null ? Number(rows[0].max_id) : null;
+}
+
+async function getMaxFechaByFuente(fuente) {
+  const sql = `
+    SELECT MAX(fecha) AS max_fecha
+    FROM accidentes
+    WHERE fuente = $1;
+  `;
+  const { rows } = await pool.query(sql, [String(fuente)]);
+  return rows[0]?.max_fecha || null;
 }
 
 async function insertOne(accidente) {
@@ -61,9 +94,11 @@ async function insertOne(accidente) {
       ST_SetSRID(ST_MakePoint($7, $8), 4326)::geography,
       $9, $10, $11, $12, $13
     )
+    ON CONFLICT ON CONSTRAINT accidentes_fuente_external_id_key DO NOTHING
     RETURNING
       id, fecha, hora, distrito, ubigeo, tipo, gravedad,
       fallecidos, lesionados, fuente, external_id, raw,
+      ingested_at, updated_at,
       ST_Y(ubicacion::geometry) AS lat,
       ST_X(ubicacion::geometry) AS lng;
   `;
@@ -95,6 +130,7 @@ async function findFiltered({ distrito, gravedad }) {
     SELECT
       id, fecha, hora, distrito, ubigeo, tipo, gravedad,
       fallecidos, lesionados, fuente, external_id, raw,
+      ingested_at, updated_at,
       ST_Y(ubicacion::geometry) AS lat,
       ST_X(ubicacion::geometry) AS lng
     FROM accidentes
@@ -106,13 +142,52 @@ async function findFiltered({ distrito, gravedad }) {
   return rows;
 }
 
+/* ===== audit getters ===== */
+
+async function findById(id) {
+  const sql = `
+    SELECT
+      id, fecha, hora, distrito, ubigeo, tipo, gravedad,
+      fallecidos, lesionados, fuente, external_id, raw,
+      ingested_at, updated_at,
+      ST_Y(ubicacion::geometry) AS lat,
+      ST_X(ubicacion::geometry) AS lng
+    FROM accidentes
+    WHERE id = $1
+    LIMIT 1;
+  `;
+  const { rows } = await pool.query(sql, [Number(id)]);
+  return rows[0] || null;
+}
+
+async function findByFuenteExternalId(fuente, externalId) {
+  const sql = `
+    SELECT
+      id, fecha, hora, distrito, ubigeo, tipo, gravedad,
+      fallecidos, lesionados, fuente, external_id, raw,
+      ingested_at, updated_at,
+      ST_Y(ubicacion::geometry) AS lat,
+      ST_X(ubicacion::geometry) AS lng
+    FROM accidentes
+    WHERE fuente = $1 AND external_id = $2
+    LIMIT 1;
+  `;
+  const { rows } = await pool.query(sql, [String(fuente), Number(externalId)]);
+  return rows[0] || null;
+}
+
 async function findBaseDataset() {
   return findAll();
 }
 
 module.exports = {
   findAll,
+  existsByFuenteExternalId,
+  getMaxExternalIdByFuente,
+  getMaxFechaByFuente,
   insertOne,
   findFiltered,
+  findById,
+  findByFuenteExternalId,
   findBaseDataset,
 };

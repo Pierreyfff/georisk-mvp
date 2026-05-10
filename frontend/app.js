@@ -1,4 +1,4 @@
-const API_BASE = "http://localhost:3000";
+const API_BASE = `${location.origin}/api`;
 
 const map = L.map("map").setView([-12.08, -77.03], 12);
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -234,10 +234,21 @@ async function cargarDistritosSelect() {
   optSratma.textContent = "SRATMA (Perú)";
   select.appendChild(optSratma);
 
-  const resp = await fetch(`${API_BASE}/distritos?limit=2000`);
-  const json = await resp.json();
+  let json;
+  try {
+    const resp = await fetch(`${API_BASE}/distritos?limit=2000`);
+    json = await resp.json();
 
-  for (const d of json.data) {
+    if (!resp.ok) {
+      throw new Error(json?.error || `HTTP ${resp.status}`);
+    }
+  } catch (e) {
+    console.error("Error cargando distritos:", e.message);
+    return;
+  }
+
+  const list = Array.isArray(json.data) ? json.data : [];
+  for (const d of list) {
     const opt = document.createElement("option");
     opt.value = d.ubigeo;
     opt.textContent = `${d.departamento} / ${d.provincia} / ${d.distrito}`;
