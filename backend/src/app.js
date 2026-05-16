@@ -5,6 +5,7 @@ const { router: streamRouter } = require("./routes/stream.routes");
 
 // 👉 AGREGAR ESTO
 const distritosRouter = require("./routes/distritos.routes");
+const { router: statsRouter } = require("./routes/stats.routes");
 
 const app = express();
 
@@ -20,6 +21,7 @@ app.use("/stream", streamRouter);
 
 // 👉 AGREGAR ESTO
 app.use("/distritos", distritosRouter);
+app.use("/stats", statsRouter);
 
 // Manejo de errores centralizado
 app.use((err, req, res, next) => {

@@ -18,7 +18,9 @@ CREATE TABLE IF NOT EXISTS accidentes (
   ubicacion    GEOGRAPHY(POINT, 4326) NOT NULL,
   lat          DOUBLE PRECISION GENERATED ALWAYS AS (ST_Y(ubicacion::geometry)) STORED,
   lng          DOUBLE PRECISION GENERATED ALWAYS AS (ST_X(ubicacion::geometry)) STORED,
-  created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  ingested_at  TIMESTAMPTZ NULL,
+  updated_at   TIMESTAMPTZ NULL
 );
 
 -- Ubigeo válido si existe
@@ -78,3 +80,30 @@ ON distritos (departamento);
 
 CREATE INDEX IF NOT EXISTS idx_distritos_provincia
 ON distritos (provincia);
+
+-- =========================
+-- Tabla ingest_runs (seguimiento de ingestas)
+-- =========================
+CREATE TABLE IF NOT EXISTS ingest_runs (
+  id          SERIAL PRIMARY KEY,
+  fuente      TEXT NOT NULL,
+  mode        TEXT NULL,
+  range_from  TEXT NULL,
+  range_to    TEXT NULL,
+  interval_ms INTEGER NULL,
+  listed      INTEGER NULL,
+  batch       INTEGER NULL,
+  notes       JSONB NULL,
+  started_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  finished_at TIMESTAMPTZ NULL,
+  created     INTEGER NULL,
+  duplicates  INTEGER NULL,
+  invalid     INTEGER NULL,
+  errors      INTEGER NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_ingest_runs_fuente
+ON ingest_runs(fuente);
+
+CREATE INDEX IF NOT EXISTS idx_ingest_runs_started_at
+ON ingest_runs(started_at DESC);

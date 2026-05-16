@@ -32,6 +32,50 @@ async function getFiltered(req, res, next) {
   }
 }
 
+async function getAvanzados(req, res, next) {
+  try {
+    const filters = {
+      distrito: req.query.distrito || null,
+      gravedad: req.query.gravedad || null,
+      tipo: req.query.tipo || null,
+      fecha_desde: req.query.fecha_desde || null,
+      fecha_hasta: req.query.fecha_hasta || null,
+      lat: req.query.lat ? Number(req.query.lat) : null,
+      lng: req.query.lng ? Number(req.query.lng) : null,
+      radio_km: req.query.radio_km ? Number(req.query.radio_km) : null,
+      limit: req.query.limit ? Number(req.query.limit) : 100,
+      offset: req.query.offset ? Number(req.query.offset) : 0,
+    };
+
+    const result = await service.getAccidentesAvanzados(filters);
+    res.json(result);
+  } catch (e) {
+    next(e);
+  }
+}
+
+async function getGeoJSON(req, res, next) {
+  try {
+    const filters = {
+      distrito: req.query.distrito || null,
+      gravedad: req.query.gravedad || null,
+      tipo: req.query.tipo || null,
+      fecha_desde: req.query.fecha_desde || null,
+      fecha_hasta: req.query.fecha_hasta || null,
+      lat: req.query.lat ? Number(req.query.lat) : null,
+      lng: req.query.lng ? Number(req.query.lng) : null,
+      radio_km: req.query.radio_km ? Number(req.query.radio_km) : null,
+      limit: req.query.limit ? Number(req.query.limit) : 1000,
+    };
+
+    const geojson = await service.getAccidentesGeoJSON(filters);
+    res.setHeader("Content-Type", "application/vnd.geo+json");
+    res.json(geojson);
+  } catch (e) {
+    next(e);
+  }
+}
+
 /* ===== NUEVO: auditoría ===== */
 
 async function getAuditById(req, res, next) {
@@ -85,10 +129,48 @@ async function getAuditByFuenteExternal(req, res, next) {
   }
 }
 
+async function search(req, res, next) {
+  try {
+    const query = req.query.q || "";
+    const limit = req.query.limit ? Number(req.query.limit) : 50;
+
+    if (!query || query.trim().length === 0) {
+      return res.json([]);
+    }
+
+    const results = await service.searchAccidentes(query, limit);
+    res.json(results);
+  } catch (e) {
+    next(e);
+  }
+}
+
+async function nearby(req, res, next) {
+  try {
+    const lat = req.query.lat ? Number(req.query.lat) : null;
+    const lng = req.query.lng ? Number(req.query.lng) : null;
+    const radiusKm = req.query.radio ? Number(req.query.radio) : 5;
+    const limit = req.query.limit ? Number(req.query.limit) : 50;
+
+    if (lat == null || lng == null || !Number.isFinite(lat) || !Number.isFinite(lng)) {
+      return res.status(400).json({ error: "lat y lng son requeridos (números)" });
+    }
+
+    const results = await service.getNearbyAccidentes(lat, lng, radiusKm, limit);
+    res.json(results);
+  } catch (e) {
+    next(e);
+  }
+}
+
 module.exports = {
   getAll,
   create,
   getFiltered,
+  getAvanzados,
+  getGeoJSON,
   getAuditById,
   getAuditByFuenteExternal,
+  search,
+  nearby,
 };

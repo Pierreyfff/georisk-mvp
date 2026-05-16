@@ -3,108 +3,439 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>GeoRisk Analytics - Mapa</title>
+    <title>GeoRisk Analytics - Mapa Inteligente de Accidentes</title>
 
-    <link
-      rel="stylesheet"
-      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-    />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.1/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.1/dist/MarkerCluster.Default.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
     <style>
-      body {
-        margin: 0;
-        font-family: system-ui, Arial, sans-serif;
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      html, body { height: 100%; width: 100%; }
+      body { 
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+        color: #1e293b;
       }
+
       #topbar {
-        padding: 10px 12px;
+        padding: 16px 20px;
         display: flex;
-        gap: 12px;
-        align-items: end;
-        border-bottom: 1px solid #ddd;
+        flex-wrap: wrap;
+        gap: 16px;
+        align-items: flex-start;
+        background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+        border-bottom: 1px solid #334155;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
       }
-      #map {
-        height: calc(100vh - 78px);
+
+      .filter-section {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        padding: 12px 16px;
+        border-radius: 10px;
+        background: rgba(255,255,255,0.05);
+        border: 1px solid #334155;
+        transition: all 0.2s ease;
       }
-      label {
-        display: block;
-        font-size: 12px;
-        color: #333;
+
+      .filter-section:hover {
+        background: rgba(255,255,255,0.08);
+        border-color: #475569;
       }
-      select {
-        padding: 6px;
+
+      .filter-section:last-child { border-right: none; }
+
+      .filter-section label {
+        font-size: 11px;
+        font-weight: 700;
+        color: #94a3b8;
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
       }
-      #kpis {
-        margin-left: auto;
+
+      .filter-section label::before {
+        content: '▸';
+        color: #3b82f6;
+        font-size: 10px;
+      }
+
+      .filter-section select, .filter-section input {
+        padding: 10px 14px;
+        border: 1px solid #475569;
+        border-radius: 8px;
+        font-size: 13px;
+        background: #1e293b;
+        color: #f1f5f9;
+        min-width: 150px;
+        transition: all 0.2s ease;
+      }
+
+      .filter-section select:hover, .filter-section input:hover {
+        border-color: #64748b;
+      }
+
+      .filter-section select:focus, .filter-section input:focus {
+        outline: none;
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59,130,246,0.25);
+        background: #0f172a;
+      }
+
+      .filter-section select option {
+        background: #1e293b;
+        color: #f1f5f9;
+      }
+
+      .checkbox-group {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      .checkbox-group label {
+        font-size: 13px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        color: #cbd5e1;
+        cursor: pointer;
+        padding: 6px 10px;
+        border-radius: 6px;
+        background: rgba(255,255,255,0.05);
+        border: 1px solid transparent;
+        transition: all 0.2s ease;
+        text-transform: none;
+        font-weight: 500;
+      }
+
+      .checkbox-group label::before { content: none; }
+
+      .checkbox-group label:hover {
+        background: rgba(255,255,255,0.1);
+        border-color: #475569;
+      }
+
+      .checkbox-group input[type="checkbox"] {
+        width: 16px;
+        height: 16px;
+        accent-color: #3b82f6;
+        cursor: pointer;
+        min-width: auto;
+        border: none;
+        background: transparent;
+      }
+
+      .quick-dates {
+        display: flex;
+        gap: 6px;
+        margin-top: 4px;
+      }
+
+      .quick-dates button {
+        padding: 6px 12px;
+        font-size: 11px;
+        font-weight: 600;
+        background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        color: #fff;
+        transition: all 0.2s ease;
+        box-shadow: 0 2px 4px rgba(59,130,246,0.3);
+      }
+
+      .quick-dates button:hover { 
+        background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(59,130,246,0.4);
+      }
+
+      #topbar button {
+        padding: 10px 20px;
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        color: #fff;
+        border: none;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        margin-top: auto;
+        box-shadow: 0 2px 8px rgba(16,185,129,0.3);
+      }
+
+      #topbar button:hover { 
+        background: linear-gradient(135deg, #059669 0%, #047857 100%);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(16,185,129,0.4);
+      }
+
+      #topbar button.secondary { 
+        background: linear-gradient(135deg, #475569 0%, #334155 100%);
+        color: #f1f5f9;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+      }
+
+      #topbar button.secondary:hover { 
+        background: linear-gradient(135deg, #64748b 0%, #475569 100%);
+        transform: translateY(-1px);
+      }
+
+      #topbar button.active {
+        background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+        box-shadow: 0 2px 8px rgba(245,158,11,0.4);
+      }
+
+      #statsbar {
+        padding: 12px 16px;
+        display: flex;
+        gap: 24px;
+        align-items: center;
+        background: #1e293b;
+        color: #fff;
+        flex-wrap: wrap;
+      }
+
+      .stat-card { display: flex; flex-direction: column; gap: 2px; }
+      .stat-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: #94a3b8; }
+      .stat-value { font-size: 18px; font-weight: 700; }
+      .stat-card.alta .stat-value { color: #ef4444; }
+      .stat-card.media .stat-value { color: #f59e0b; }
+      .stat-card.baja .stat-value { color: #22c55e; }
+      .stat-card.total .stat-value { color: #fff; }
+
+      #map { height: calc(100vh - 162px); }
+
+      #panel-estadisticas {
+        position: fixed;
+        top: 100px;
+        right: 16px;
+        width: 360px;
+        background: #fff;
+        border-radius: 12px;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+        z-index: 1000;
+        display: none;
+        max-height: calc(100vh - 160px);
+        overflow-y: auto;
+      }
+
+      #panel-estadisticas.visible { display: block; }
+
+      #panel-estadisticas .panel-header {
+        padding: 16px;
+        border-bottom: 1px solid #e2e8f0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      #panel-estadisticas .panel-header h3 { font-size: 16px; font-weight: 600; color: #1e293b; }
+      #panel-estadisticas .panel-header button { background: none; border: none; font-size: 20px; cursor: pointer; color: #64748b; }
+
+      #panel-estadisticas .panel-body { padding: 16px; }
+      #panel-estadisticas .stat-section { margin-bottom: 20px; }
+      #panel-estadisticas .stat-section h4 { font-size: 12px; font-weight: 600; color: #64748b; text-transform: uppercase; margin-bottom: 12px; }
+
+      #panel-estadisticas .top-distrito {
+        display: flex;
+        justify-content: space-between;
+        padding: 8px 0;
+        border-bottom: 1px solid #f1f5f9;
         font-size: 13px;
       }
-      .kpi {
-        display: inline-block;
-        margin-left: 12px;
+
+      #panel-estadisticas .top-distrito .nombre { color: #334155; }
+      #panel-estadisticas .top-distrito .valor { font-weight: 600; color: #1e293b; }
+
+      #panel-estadisticas .chart-bar {
+        height: 24px;
+        background: #f1f5f9;
+        border-radius: 4px;
+        margin-bottom: 8px;
+        overflow: hidden;
+        display: flex;
       }
-      .dot {
-        display: inline-block;
-        width: 10px;
-        height: 10px;
+
+      #panel-estadisticas .chart-bar .bar-segment { height: 100%; transition: width 0.3s; }
+      #panel-estadisticas .chart-bar .alta { background: #ef4444; }
+      #panel-estadisticas .chart-bar .media { background: #f59e0b; }
+      #panel-estadisticas .chart-bar .baja { background: #22c55e; }
+
+      #status-bar {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 32px;
+        background: #1e293b;
+        color: #e2e8f0;
+        font-size: 12px;
+        display: flex;
+        align-items: center;
+        padding: 0 16px;
+        border-top: 1px solid #334155;
+        z-index: 999;
+        font-family: monospace;
+      }
+
+      #loading-overlay {
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(255,255,255,0.8);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 2000;
+      }
+
+      #loading-overlay.visible { display: flex; }
+
+      .spinner {
+        width: 40px; height: 40px;
+        border: 3px solid #e2e8f0;
+        border-top-color: #3b82f6;
         border-radius: 50%;
-        margin-right: 6px;
-        vertical-align: middle;
+        animation: spin 0.8s linear infinite;
       }
+
+      @keyframes spin { to { transform: rotate(360deg); } }
+
+      #ws-status {
+        font-size: 11px;
+        padding: 4px 8px;
+        border-radius: 4px;
+        margin-left: auto;
+      }
+
+      #ws-status.connected { background: #dcfce7; color: #166534; }
+      #ws-status.disconnected { background: #fee2e2; color: #991b1b; }
+
+      .filter-row { display: flex; gap: 12px; flex-wrap: wrap; }
     </style>
   </head>
   <body>
+    <div id="loading-overlay"><div class="spinner"></div></div>
+
     <div id="topbar">
-      <div>
-        <label>Distrito</label>
-        <select id="distrito">
-          <option value="">(Todos)</option>
-          <option value="150122">Miraflores</option>
-          <option value="150131">San Isidro</option>
-          <option value="150140">Santiago de Surco</option>
-          <option value="150115">La Victoria</option>
-          <option value="150808">Lima</option>
-          <option value="150133">San Juan de Miraflores</option>
-          <option value="SRATMA">SRATMA (Perú)</option>
-        </select>
+      <div class="filter-section">
+        <label>📍 Ubicación</label>
+        <div class="filter-row">
+          <select id="departamento"><option value="">Departamento</option></select>
+          <select id="provincia"><option value="">Provincia</option></select>
+          <select id="distrito"><option value="">Distrito</option></select>
+        </div>
       </div>
 
-      <div>
-        <label>Gravedad</label>
-        <select id="gravedad">
-          <option value="">(Todas)</option>
-          <option>Baja</option>
-          <option>Media</option>
-          <option>Alta</option>
-        </select>
+      <div class="filter-section">
+        <label>📅 Rango de Fechas</label>
+        <div class="filter-row">
+          <input type="date" id="fecha_desde" placeholder="Desde" />
+          <input type="date" id="fecha_hasta" placeholder="Hasta" />
+        </div>
+        <div class="quick-dates">
+          <button onclick="setFechaRapida('hoy')">Hoy</button>
+          <button onclick="setFechaRapida('7d')">7 días</button>
+          <button onclick="setFechaRapida('30d')">30 días</button>
+          <button onclick="setFechaRapida('90d')">90 días</button>
+          <button onclick="setFechaRapida('1y')">1 año</button>
+        </div>
       </div>
 
-      <div>
-        <button id="btnCargar">Cargar</button>
+      <div class="filter-section">
+        <label>⚠️ Gravedad</label>
+        <div class="checkbox-group">
+          <label style="color: #ef4444;"><input type="checkbox" name="gravedad" value="Alta"> Alta</label>
+          <label style="color: #f59e0b;"><input type="checkbox" name="gravedad" value="Media"> Media</label>
+          <label style="color: #22c55e;"><input type="checkbox" name="gravedad" value="Baja"> Baja</label>
+        </div>
       </div>
 
-      <div id="kpis">
-        <span class="kpi"
-          ><span class="dot" style="background: #444"></span>Total:
-          <b id="kpiTotal">0</b></span
-        >
-        <span class="kpi"
-          ><span class="dot" style="background: #2ecc71"></span>Baja:
-          <b id="kpiBaja">0</b></span
-        >
-        <span class="kpi"
-          ><span class="dot" style="background: #f1c40f"></span>Media:
-          <b id="kpiMedia">0</b></span
-        >
-        <span class="kpi"
-          ><span class="dot" style="background: #e74c3c"></span>Alta:
-          <b id="kpiAlta">0</b></span
-        >
-        <span class="kpi">Promedio: <b id="kpiProm">0</b></span>
+      <div class="filter-section">
+        <label>🚗 Tipo de Accidente</label>
+        <div class="checkbox-group" id="tipos-checkboxes"></div>
+      </div>
+
+      <div class="filter-section">
+        <label>📊 Fuente</label>
+        <div class="checkbox-group">
+          <label><input type="checkbox" name="fuente" value="SRATMA"> SRATMA</label>
+          <label><input type="checkbox" name="fuente" value="simulator"> Simulator</label>
+        </div>
+      </div>
+
+      <div class="filter-section" style="background: transparent; border: none; padding: 12px 0;">
+        <label>🎯 Acciones</label>
+        <div style="display:flex;gap:8px; flex-wrap: wrap;">
+          <button id="btnCargar">▶ Cargar</button>
+          <button id="btnLimpiar" class="secondary">⟲ Limpiar</button>
+          <button id="btnHeatmap" class="secondary">🔥 Mapa Calor</button>
+          <button id="btnEstadisticas" class="secondary">📈 Estadísticas</button>
+          <button id="btnGeoJSON" class="secondary">⬇ GeoJSON</button>
+        </div>
+      </div>
+
+      <span id="ws-status" class="disconnected">⚫ WS: Desconectado</span>
+    </div>
+
+    <div id="statsbar">
+      <div class="stat-card total">
+        <span class="stat-label">Total</span>
+        <span class="stat-value" id="kpiTotal">0</span>
+      </div>
+      <div class="stat-card alta">
+        <span class="stat-label">Alta</span>
+        <span class="stat-value" id="kpiAlta">0</span>
+      </div>
+      <div class="stat-card media">
+        <span class="stat-label">Media</span>
+        <span class="stat-value" id="kpiMedia">0</span>
+      </div>
+      <div class="stat-card baja">
+        <span class="stat-label">Baja</span>
+        <span class="stat-value" id="kpiBaja">0</span>
+      </div>
+    </div>
+
+    <div id="panel-estadisticas">
+      <div class="panel-header">
+        <h3>Estadísticas (Último año)</h3>
+        <button onclick="document.getElementById('panel-estadisticas').classList.remove('visible')">×</button>
+      </div>
+      <div class="panel-body">
+        <div class="stat-section">
+          <h4>Top 10 Distritos</h4>
+          <div id="top-distritos"></div>
+        </div>
+        <div class="stat-section">
+          <h4>Por Gravedad</h4>
+          <div class="chart-bar" id="chart-gravedad">
+            <div class="bar-segment alta" style="width: 0%"></div>
+            <div class="bar-segment media" style="width: 0%"></div>
+            <div class="bar-segment baja" style="width: 0%"></div>
+          </div>
+          <div style="display: flex; gap: 16px; font-size: 12px; color: #64748b;">
+            <span><span style="color:#ef4444">●</span> Alta: <span id="stat-alta">0</span></span>
+            <span><span style="color:#f59e0b">●</span> Media: <span id="stat-media">0</span></span>
+            <span><span style="color:#22c55e">●</span> Baja: <span id="stat-baja">0</span></span>
+          </div>
+        </div>
       </div>
     </div>
 
     <div id="map"></div>
+    <div id="status-bar">🟢 Conectado | Cargando... | ⚡ Tiempo real activo</div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.1/dist/leaflet.markercluster.js"></script>
+    <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
     <script src="./vendor/osmtogeojson.js"></script>
     <script type="module" src="./app.js"></script>
   </body>

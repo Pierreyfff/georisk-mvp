@@ -6,6 +6,14 @@ const router = express.Router();
 router.get("/", controller.getAll);
 router.post("/", controller.create);
 router.get("/filtrados", controller.getFiltered);
+router.get("/avanzados", controller.getAvanzados);
+router.get("/geojson", controller.getGeoJSON);
+
+// Búsqueda full-text
+router.get("/buscar", controller.search);
+
+// Accidentes cercanos (por radio geográfico)
+router.get("/cercanos", controller.nearby);
 
 // Auditoría (veracidad)
 router.get("/:id/audit", controller.getAuditById);

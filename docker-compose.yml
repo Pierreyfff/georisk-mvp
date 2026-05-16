@@ -29,13 +29,17 @@ services:
       PGDATABASE: georisk
       PGUSER: georisk_user
       PGPASSWORD: georisk_pass
+      REDIS_URL: redis://redis:6379
       SRATMA_INGEST: "on"
-      SRATMA_MAX_PER_TICK: 10
+      SRATMA_MAX_PER_TICK: 100
       SRATMA_INTERVAL_MS: 15000
+      SRATMA_BACKFILL_MAX_DAYS: 365
     ports:
       - "3000:3000"
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
 
   frontend:
@@ -49,5 +53,19 @@ services:
     depends_on:
       - backend
 
+  redis:
+    image: redis:7-alpine
+    container_name: georisk-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - georisk_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
 volumes:
   georisk_db_data:
+  georisk_redis_data:

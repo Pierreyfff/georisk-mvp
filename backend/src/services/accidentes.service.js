@@ -1,6 +1,20 @@
 const repo = require("../repositories/accidentes.repository");
+const redisCache = require("../cache/redis.cache");
 
 const GRAVEDADES_VALIDAS = new Set(["Baja", "Media", "Alta"]);
+
+/* ===== Cache Functions (ahora con Redis) ===== */
+async function getCache(key) {
+  return await redisCache.get(key);
+}
+
+async function setCache(key, data, ttlType = "accidentes_list") {
+  await redisCache.set(key, data, ttlType);
+}
+
+async function invalidateCache(prefix) {
+  await redisCache.invalidateByPrefix(prefix);
+}
 
 function isValidLatLng(lat, lng) {
   return (
@@ -32,7 +46,6 @@ async function getLastFechaByFuente(fuente) {
   return repo.getMaxFechaByFuente(fuente);
 }
 
-/* ===== NUEVO: audit getters ===== */
 async function getAccidenteById(id) {
   const row = await repo.findById(id);
   return row;
@@ -53,7 +66,7 @@ async function createAccidente(accidente) {
     gravedad,
     lat,
     lng,
-    fallecidos,
+    Fallecidos,
     lesionados,
     fuente,
     external_id,
@@ -87,7 +100,7 @@ async function createAccidente(accidente) {
     throw err;
   }
 
-  return repo.insertOne({
+  const created = await repo.insertOne({
     fecha,
     hora,
     distrito,
@@ -96,15 +109,24 @@ async function createAccidente(accidente) {
     gravedad,
     lat,
     lng,
-    fallecidos: fallecidos ?? null,
+    Fallecidos: Fallecidos ?? null,
     lesionados: lesionados ?? null,
     fuente: fuente ?? null,
     external_id: external_id ?? null,
     raw: raw ?? null,
   });
+
+  invalidateCache("stats:");
+  invalidateCache("distritos:");
+
+  return created;
 }
 
 async function getAccidentesFiltrados({ distrito, gravedad }) {
+  const cacheKey = `filtered:${distrito || "all"}:${gravedad || "all"}`;
+  const cached = await getCache(cacheKey);
+  if (cached) return cached;
+
   const base = await repo.findFiltered({ distrito, gravedad });
 
   const gravedadScore = (g) => (g === "Baja" ? 1 : g === "Media" ? 2 : 3);
@@ -145,7 +167,7 @@ async function getAccidentesFiltrados({ distrito, gravedad }) {
   const gravedadPromedio =
     acc.total === 0 ? 0 : Number((acc.sumaGravedadScore / acc.total).toFixed(2));
 
-  return {
+  const result = {
     filters: {
       distrito: distrito || null,
       gravedad: gravedad || null,
@@ -158,15 +180,138 @@ async function getAccidentesFiltrados({ distrito, gravedad }) {
       gravedadPromedio,
     },
   };
+
+  await setCache(cacheKey, result, "accidentes_filtered");
+  return result;
+}
+
+/* ===== Filtros avanzados ===== */
+
+async function getAccidentesAvanzados(filters = {}) {
+  const cacheKey = `advanced:${JSON.stringify(filters)}`;
+  const cached = await getCache(cacheKey);
+  if (cached) return cached;
+
+  const result = await repo.findAdvanced(filters);
+  await setCache(cacheKey, result, 30000);
+  return result;
+}
+
+/* ===== GeoJSON nativo ===== */
+
+async function getAccidentesGeoJSON(filters = {}) {
+  const cacheKey = `geojson:${JSON.stringify(filters)}`;
+  const cached = await getCache(cacheKey);
+  if (cached) return cached;
+
+  const result = await repo.findAsGeoJSON(filters);
+  await setCache(cacheKey, result, "accidentes_filtered");
+  return result;
+}
+
+/* ===== Estadisticas ===== */
+
+async function getStatsByPeriod(groupBy, days = 30) {
+  const cacheKey = `stats:period:${groupBy}:${days}`;
+  const cached = await getCache(cacheKey);
+  if (cached) return cached;
+
+  const result = await repo.getStatsByPeriod(groupBy, days);
+  await setCache(cacheKey, result, "stats_dashboard");
+  return result;
+}
+
+async function getTopDistritos(days = 30, limit = 10) {
+  const cacheKey = `stats:topdistritos:${days}:${limit}`;
+  const cached = await getCache(cacheKey);
+  if (cached) return cached;
+
+  const result = await repo.getTopDistritos(days, limit);
+  await setCache(cacheKey, result, "stats_dashboard");
+  return result;
+}
+
+async function getHeatmapData(fecha_desde, fecha_hasta) {
+  const cacheKey = `stats:heatmap:${fecha_desde}:${fecha_hasta}`;
+  const cached = await getCache(cacheKey);
+  if (cached) return cached;
+
+  const result = await repo.getHeatmapData(fecha_desde, fecha_hasta);
+  await setCache(cacheKey, result, "stats_dashboard");
+  return result;
+}
+
+async function getDashboardStats(days = 30) {
+  const cacheKey = `stats:dashboard:${days}`;
+  const cached = await getCache(cacheKey);
+  if (cached) return cached;
+
+  const result = await repo.getDashboardStats(days);
+  await setCache(cacheKey, result, "stats_dashboard");
+  return result;
+}
+
+/* ===== Tipos unicos para filtros ===== */
+
+async function getTiposUnicos() {
+  const cacheKey = "tipos:unicos";
+  const cached = await getCache(cacheKey);
+  if (cached) return cached;
+
+  const query = `
+    SELECT DISTINCT tipo
+    FROM accidentes
+    WHERE tipo IS NOT NULL
+    ORDER BY tipo;
+  `;
+  const { pool } = require("../db/pool");
+  const { rows } = await pool.query(query);
+  const result = rows.map((r) => r.tipo);
+  await setCache(cacheKey, result, "distritos");
+  return result;
+}
+
+/* ===== BÚSQUEDA ===== */
+
+async function searchAccidentes(query, limit = 50) {
+  if (!query || String(query).trim().length === 0) {
+    return [];
+  }
+
+  const result = await repo.search(query, limit);
+  return result;
+}
+
+/* ===== ACCIDENTES CERCANOS ===== */
+
+async function getNearbyAccidentes(lat, lng, radiusKm = 5, limit = 50) {
+  if (!isValidLatLng(lat, lng)) {
+    const err = new Error("Coordenadas inválidas (lat/lng)");
+    err.status = 400;
+    throw err;
+  }
+
+  const result = await repo.findNearby(lat, lng, radiusKm, limit);
+  return result;
 }
 
 module.exports = {
   getAccidentes,
   createAccidente,
   getAccidentesFiltrados,
+  getAccidentesAvanzados,
+  getAccidentesGeoJSON,
+  getStatsByPeriod,
+  getTopDistritos,
+  getHeatmapData,
+  getDashboardStats,
+  getTiposUnicos,
+  invalidateCache,
   accidenteExists,
   getLastExternalIdByFuente,
   getLastFechaByFuente,
   getAccidenteById,
   getAccidenteByFuenteExternalId,
+  searchAccidentes,
+  getNearbyAccidentes,
 };
