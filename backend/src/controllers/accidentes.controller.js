@@ -36,14 +36,17 @@ async function getAvanzados(req, res, next) {
   try {
     const filters = {
       distrito: req.query.distrito || null,
+      departamento: req.query.departamento || null,
+      provincia: req.query.provincia || null,
       gravedad: req.query.gravedad || null,
       tipo: req.query.tipo || null,
+      fuente: req.query.fuente || null,
       fecha_desde: req.query.fecha_desde || null,
       fecha_hasta: req.query.fecha_hasta || null,
       lat: req.query.lat ? Number(req.query.lat) : null,
       lng: req.query.lng ? Number(req.query.lng) : null,
       radio_km: req.query.radio_km ? Number(req.query.radio_km) : null,
-      limit: req.query.limit ? Number(req.query.limit) : 100,
+      limit: req.query.limit ? Number(req.query.limit) : 100000,
       offset: req.query.offset ? Number(req.query.offset) : 0,
     };
 
@@ -58,14 +61,17 @@ async function getGeoJSON(req, res, next) {
   try {
     const filters = {
       distrito: req.query.distrito || null,
+      departamento: req.query.departamento || null,
+      provincia: req.query.provincia || null,
       gravedad: req.query.gravedad || null,
       tipo: req.query.tipo || null,
+      fuente: req.query.fuente || null,
       fecha_desde: req.query.fecha_desde || null,
       fecha_hasta: req.query.fecha_hasta || null,
       lat: req.query.lat ? Number(req.query.lat) : null,
       lng: req.query.lng ? Number(req.query.lng) : null,
       radio_km: req.query.radio_km ? Number(req.query.radio_km) : null,
-      limit: req.query.limit ? Number(req.query.limit) : 1000,
+      limit: req.query.limit ? Number(req.query.limit) : 100000,
     };
 
     const geojson = await service.getAccidentesGeoJSON(filters);

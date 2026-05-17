@@ -1,6 +1,6 @@
 const API_BASE = `${location.origin}/api`;
 
-const map = L.map("map").setView([-12.0464, -77.0428], 6);
+const map = L.map("map").setView([-9.189967, -75.015152], 6);
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   maxZoom: 19,
   attribution: "&copy; OpenStreetMap contributors",
@@ -37,9 +37,9 @@ const currentFilters = {
 };
 
 function gravedadColor(g) {
-  if (g === "Alta") return "#ef4444";
-  if (g === "Media") return "#f59e0b";
-  return "#22c55e";
+  if (g === "Alta") return "#dc2626";
+  if (g === "Media") return "#d97706";
+  return "#16a34a";
 }
 
 function normalizeAccident(acc) {
@@ -62,45 +62,23 @@ function makeMarker(acc) {
     fillOpacity: 0.85,
   });
 
-  // Popup detallado y atractivo
   const popup = `
-    <div style="width: 280px; font-family: Inter, sans-serif;">
-      <div style="background: ${color}; color: white; padding: 12px; border-radius: 8px 8px 0 0; margin: -4px -4px 0 -4px;">
-        <strong>${acc.tipo}</strong>
-        <span style="float: right; background: rgba(255,255,255,0.3); padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 600;">
-          ${acc.gravedad}
-        </span>
+    <div style="width:290px;font-family:'Inter',sans-serif;">
+      <div style="background:${color};color:#fff;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;">
+        <strong style="font-size:13px;">${acc.tipo}</strong>
+        <span style="background:rgba(255,255,255,0.25);padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700;">${acc.gravedad}</span>
       </div>
-      <div style="padding: 12px;">
-        <table style="width: 100%; font-size: 12px; line-height: 1.6;">
-          <tr>
-            <td style="color: #64748b;">📅 Fecha:</td>
-            <td style="font-weight: 600;">${acc.fecha}</td>
-          </tr>
-          <tr>
-            <td style="color: #64748b;">🕒 Hora:</td>
-            <td style="font-weight: 600;">${acc.hora}</td>
-          </tr>
-          <tr>
-            <td style="color: #64748b;">📍 Distrito:</td>
-            <td style="font-weight: 600;">${acc.distrito || "N/A"}</td>
-          </tr>
-          <tr>
-            <td style="color: #64748b;">💀 Fallecidos:</td>
-            <td style="font-weight: 600; color: #ef4444;">${acc.fallecidos ?? 0}</td>
-          </tr>
-          <tr>
-            <td style="color: #64748b;">🏥 Lesionados:</td>
-            <td style="font-weight: 600; color: #f59e0b;">${acc.lesionados ?? 0}</td>
-          </tr>
-          <tr>
-            <td style="color: #64748b;">🔗 Fuente:</td>
-            <td style="font-weight: 600;">${acc.fuente} #${acc.external_id}</td>
-          </tr>
+      <div style="padding:12px 14px;">
+        <table style="width:100%;border-collapse:collapse;font-size:12px;">
+          <tr><td style="color:#64748b;padding:3px 0;width:80px;">Fecha</td><td style="font-weight:600;padding:3px 0;">${acc.fecha}</td></tr>
+          <tr><td style="color:#64748b;padding:3px 0;">Hora</td><td style="font-weight:600;padding:3px 0;">${acc.hora}</td></tr>
+          <tr><td style="color:#64748b;padding:3px 0;">Distrito</td><td style="font-weight:600;padding:3px 0;">${acc.distrito || "N/A"}</td></tr>
+          <tr><td style="color:#64748b;padding:3px 0;">Fallecidos</td><td style="font-weight:700;padding:3px 0;color:#dc2626;">${acc.fallecidos ?? 0}</td></tr>
+          <tr><td style="color:#64748b;padding:3px 0;">Lesionados</td><td style="font-weight:700;padding:3px 0;color:#d97706;">${acc.lesionados ?? 0}</td></tr>
+          <tr><td style="color:#64748b;padding:3px 0;">Fuente</td><td style="font-weight:600;padding:3px 0;">${acc.fuente} #${acc.external_id}</td></tr>
         </table>
       </div>
-    </div>
-  `;
+    </div>`;
 
   marker.bindPopup(popup, { maxWidth: 300 });
   return marker;
@@ -134,6 +112,9 @@ function renderKpis(data) {
   document.getElementById("kpiAlta").textContent = alta;
   document.getElementById("kpiMedia").textContent = media;
   document.getElementById("kpiBaja").textContent = baja;
+
+  const countEl = document.getElementById("status-count");
+  if (countEl) countEl.textContent = total;
 }
 
 function getUIFilters() {
@@ -249,7 +230,6 @@ async function cargar() {
     if (filtros.fuente.length > 0) params.set("fuente", filtros.fuente.join(","));
     if (filtros.fecha_desde) params.set("fecha_desde", filtros.fecha_desde);
     if (filtros.fecha_hasta) params.set("fecha_hasta", filtros.fecha_hasta);
-    params.set("limit", 10000);
 
     const url = `${API_BASE}/accidentes/avanzados?${params.toString()}`;
     const resp = await fetch(url);
@@ -258,6 +238,11 @@ async function cargar() {
     allAccidents = json.data || [];
     renderData(allAccidents);
     renderKpis(allAccidents);
+
+    const timeEl = document.getElementById("status-time");
+    if (timeEl) timeEl.textContent = new Date().toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    const statusTextEl = document.getElementById("status-text");
+    if (statusTextEl) statusTextEl.textContent = `${allAccidents.length} registros cargados`;
 
     if (filtros.distrito) {
       await loadGeoForDistrito(filtros.distrito);
@@ -329,8 +314,7 @@ async function cargarDistritos(provincia, departamento) {
   }
 
   try {
-    // Usar nuevo endpoint de cascada
-    const resp = await fetch(`${API_BASE}/distritos?departamento=${encodeURIComponent(departamento)}&provincia=${encodeURIComponent(provincia)}`);
+    const resp = await fetch(`${API_BASE}/distritos/distritos?departamento=${encodeURIComponent(departamento)}&provincia=${encodeURIComponent(provincia)}`);
     const json = await resp.json();
     select.innerHTML = '<option value="">Todos los distritos</option>';
     if (json.data) {
@@ -353,14 +337,13 @@ async function cargarTipos() {
     const json = await resp.json();
     const container = document.getElementById("tipos-checkboxes");
     container.innerHTML = "";
-    if (json.tipos && Array.isArray(json.tipos)) {
-      for (const t of json.tipos) {
+    const tipos = json.tipos || (json.data || []).map(d => d.tipo);
+    if (Array.isArray(tipos)) {
+      for (const t of tipos) {
         const label = document.createElement("label");
-        label.style.display = "inline-flex";
-        label.style.alignItems = "center";
-        label.style.marginRight = "12px";
-        label.style.fontSize = "12px";
-        label.innerHTML = `<input type="checkbox" name="tipo" value="${t}" style="margin-right:4px">${t}`;
+        label.className = "check-item";
+        label.innerHTML = `<input type="checkbox" name="tipo" value="${t}">${t}`;
+        label.querySelector("input").addEventListener("change", applyClientFilters);
         container.appendChild(label);
       }
     }
@@ -375,8 +358,8 @@ async function cargarEstadisticas() {
 
   try {
     const [dashboard, topDistritos, tiposData] = await Promise.all([
-      fetch(`${API_BASE}/stats/dashboard?days=365`).then(r => r.json()),
-      fetch(`${API_BASE}/stats/top-distritos?days=365&limit=15`).then(r => r.json()),
+      fetch(`${API_BASE}/stats/dashboard?days=3650`).then(r => r.json()),
+      fetch(`${API_BASE}/stats/top-distritos?days=3650&limit=15`).then(r => r.json()),
       fetch(`${API_BASE}/stats/tipos`).then(r => r.json()),
     ]);
 
@@ -387,30 +370,28 @@ async function cargarEstadisticas() {
 
     const total = (dashboard.accidentes_altos || 0) + (dashboard.accidentes_medios || 0) + (dashboard.accidentes_bajos || 0);
     if (total > 0) {
-      document.querySelector("#chart-gravedad .alta").style.width = `${(dashboard.accidentes_altos / total) * 100}%`;
-      document.querySelector("#chart-gravedad .media").style.width = `${(dashboard.accidentes_medios / total) * 100}%`;
-      document.querySelector("#chart-gravedad .baja").style.width = `${(dashboard.accidentes_bajos / total) * 100}%`;
+      document.querySelector("#chart-gravedad .seg-alta").style.width = `${(dashboard.accidentes_altos / total) * 100}%`;
+      document.querySelector("#chart-gravedad .seg-media").style.width = `${(dashboard.accidentes_medios / total) * 100}%`;
+      document.querySelector("#chart-gravedad .seg-baja").style.width = `${(dashboard.accidentes_bajos / total) * 100}%`;
     }
 
     // Top Distritos con provincia y región
     const container = document.getElementById("top-distritos");
     container.innerHTML = "";
     if (topDistritos.data && Array.isArray(topDistritos.data)) {
-      for (const d of topDistritos.data) {
+      const maxVal = topDistritos.data[0]?.total_accidentes || 1;
+      for (const [idx, d] of topDistritos.data.entries()) {
         const div = document.createElement("div");
-        div.className = "top-distrito";
-        div.style.cssText = "padding: 10px 0; border-bottom: 1px solid #f1f5f9; font-size: 12px; cursor: pointer;";
+        div.className = "district-row";
+        const pct = maxVal > 0 ? (d.total_accidentes / maxVal * 100).toFixed(0) : 0;
         div.innerHTML = `
-          <div style="display: flex; justify-content: space-between; align-items: start;">
-            <div style="flex: 1;">
-              <div style="font-weight: 600; color: #1e293b;">${d.distrito}</div>
-              <div style="font-size: 11px; color: #94a3b8;">${d.provincia} • ${d.departamento}</div>
-            </div>
-            <div style="text-align: right; font-weight: 700; color: #3b82f6; font-size: 14px;">${d.total_accidentes}</div>
+          <span class="dist-rank">${idx + 1}</span>
+          <div class="dist-info">
+            <div class="dist-name">${d.distrito}</div>
+            <div class="dist-sub">${d.provincia} &bull; ${d.departamento}</div>
+            <div class="dist-bar"><div class="dist-bar-fill" style="width:${pct}%"></div></div>
           </div>
-        `;
-        div.onmouseover = () => div.style.background = "#f8fafc";
-        div.onmouseout = () => div.style.background = "transparent";
+          <span class="dist-count">${d.total_accidentes}</span>`;
         div.onclick = () => {
           document.getElementById("distrito").value = d.ubigeo || d.distrito;
           document.getElementById("provincia").value = d.provincia || "";
@@ -424,18 +405,21 @@ async function cargarEstadisticas() {
       }
     }
 
-    // Top Tipos de Accidentes
+    // Top Tipos de Accidentes — use tiposData.tipos (string array) or try stats endpoint
     const tiposContainer = document.getElementById("top-tipos");
     if (tiposContainer) {
       tiposContainer.innerHTML = "";
-      if (tiposData.data && Array.isArray(tiposData.data)) {
-        for (const t of tiposData.data.slice(0, 8)) {
-          const div = document.createElement("div");
-          div.className = "top-tipo";
-          div.style.cssText = "padding: 8px 0; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; font-size: 12px;";
-          div.innerHTML = `<span style="color: #334155;">${t.tipo}</span><span style="font-weight: 600; color: #1e293b;">${t.total_accidentes}</span>`;
-          tiposContainer.appendChild(div);
-        }
+      // Try to get per-tipo counts from current accidents
+      const typeCounts = {};
+      for (const a of allAccidents) {
+        typeCounts[a.tipo] = (typeCounts[a.tipo] || 0) + 1;
+      }
+      const typeEntries = Object.entries(typeCounts).sort((a, b) => b[1] - a[1]).slice(0, 10);
+      for (const [tipo, cnt] of typeEntries) {
+        const div = document.createElement("div");
+        div.className = "type-row";
+        div.innerHTML = `<span class="type-name">${tipo}</span><span class="type-count">${cnt}</span>`;
+        tiposContainer.appendChild(div);
       }
     }
   } catch (e) {
@@ -447,11 +431,12 @@ async function descargarGeoJSON() {
   const filtros = getUIFilters();
   const params = new URLSearchParams();
   if (filtros.distrito) params.set("distrito", filtros.distrito);
+  if (filtros.departamento) params.set("departamento", filtros.departamento);
+  if (filtros.provincia) params.set("provincia", filtros.provincia);
   if (filtros.gravedad.length > 0) params.set("gravedad", filtros.gravedad.join(","));
   if (filtros.tipo.length > 0) params.set("tipo", filtros.tipo.join(","));
   if (filtros.fecha_desde) params.set("fecha_desde", filtros.fecha_desde);
   if (filtros.fecha_hasta) params.set("fecha_hasta", filtros.fecha_hasta);
-  params.set("limit", 10000);
 
   try {
     const resp = await fetch(`${API_BASE}/accidentes/geojson?${params.toString()}`);
@@ -473,17 +458,18 @@ function initWebSocket() {
   socket = io();
 
   socket.on("connect", () => {
-    document.getElementById("ws-status").textContent = "WS: Conectado";
-    document.getElementById("ws-status").className = "connected";
+    const badge = document.getElementById("ws-status");
+    badge.className = "ws-badge connected";
+    document.getElementById("ws-label").textContent = "En vivo";
+    document.getElementById("status-text").textContent = "Conexion en tiempo real activa";
     socket.emit("subscribe", currentFilters);
-    updateStatusBar();
   });
 
   socket.on("disconnect", () => {
-    document.getElementById("ws-status").textContent = "WS: Desconectado";
-    document.getElementById("ws-status").className = "disconnected";
-    const statusBar = document.getElementById("status-bar");
-    if (statusBar) statusBar.textContent = "🔴 Desconectado";
+    const badge = document.getElementById("ws-status");
+    badge.className = "ws-badge disconnected";
+    document.getElementById("ws-label").textContent = "Desconectado";
+    document.getElementById("status-text").textContent = "Reconectando...";
   });
 
   socket.on("accidente_creado", (data) => addLiveAccident(data));
@@ -499,6 +485,7 @@ function inc(elId) {
 function addLiveAccident(acc) {
   const normalized = normalizeAccident(acc);
 
+  if (seenIds.has(normalized.id)) return;
   allAccidents.push(normalized);
   seenIds.add(normalized.id);
 
@@ -513,6 +500,7 @@ function addLiveAccident(acc) {
   if (normalized.gravedad === "Media") inc("kpiMedia");
   if (normalized.gravedad === "Alta") inc("kpiAlta");
 
+  document.getElementById("status-text").textContent = "Nuevo accidente recibido";
   updateStatusBar();
 }
 
@@ -522,8 +510,10 @@ function toggleHeatmap() {
     map.removeLayer(heatmapLayer);
     map.addLayer(markerClusterGroup);
     isHeatmapMode = false;
-    document.getElementById("btnHeatmap").textContent = "🔥 Calor";
-    document.getElementById("btnHeatmap").classList.remove("active");
+    const btnH = document.getElementById("btnHeatmap");
+    const spanH = btnH.querySelector("span");
+    if (spanH) spanH.textContent = "Mapa de Calor";
+    btnH.classList.remove("btn-active");
   } else {
     // Mostrar heatmap mejorado
     const heatData = allAccidents
@@ -554,17 +544,21 @@ function toggleHeatmap() {
     }).addTo(map);
     map.removeLayer(markerClusterGroup);
     isHeatmapMode = true;
-    document.getElementById("btnHeatmap").textContent = "🗺️ Mapa";
-    document.getElementById("btnHeatmap").classList.add("active");
+    const btnHOn = document.getElementById("btnHeatmap");
+    const spanHOn = btnHOn.querySelector("span");
+    if (spanHOn) spanHOn.textContent = "Vista Normal";
+    btnHOn.classList.add("btn-active");
   }
 }
 
 function updateStatusBar() {
   const filtered = allAccidents.filter(passesCurrentFilters);
-  const lastTime = allAccidents.length > 0 ? "hace <1 min" : "nunca";
-  const statusText = `🟢 Conectado | Último: ${lastTime} | En vista: ${filtered.length} | ⚡ Tiempo real activo`;
-  const statusBar = document.getElementById("status-bar");
-  if (statusBar) statusBar.textContent = statusText;
+  const countEl = document.getElementById("status-count");
+  if (countEl) countEl.textContent = filtered.length;
+
+  const now = new Date();
+  const timeEl = document.getElementById("status-time");
+  if (timeEl) timeEl.textContent = now.toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
 
 function togglePanelEstadisticas() {
@@ -589,7 +583,7 @@ function limpiarFiltros() {
   document.querySelectorAll('input[name="fuente"]').forEach(e => e.checked = false);
 
   clearGeographicLayers();
-  map.setView([-12.0464, -77.0428], 6);
+  map.setView([-9.189967, -75.015152], 6);
 
   Object.keys(currentFilters).forEach(k => currentFilters[k] = Array.isArray(currentFilters[k]) ? [] : null);
 
@@ -616,6 +610,11 @@ function setFechaRapida(periodo) {
     case "1y":
       desde.setFullYear(hoy.getFullYear() - 1);
       break;
+    case "all":
+      document.getElementById("fecha_desde").value = "";
+      document.getElementById("fecha_hasta").value = "";
+      cargar();
+      return;
   }
 
   document.getElementById("fecha_desde").value = desde.toISOString().slice(0, 10);
@@ -626,8 +625,40 @@ function setFechaRapida(periodo) {
 document.getElementById("btnCargar").addEventListener("click", cargar);
 document.getElementById("btnLimpiar").addEventListener("click", limpiarFiltros);
 document.getElementById("btnHeatmap").addEventListener("click", toggleHeatmap);
-document.getElementById("btnEstadisticas").addEventListener("click", cargarEstadisticas);
+document.getElementById("btnEstadisticas").addEventListener("click", () => {
+  const panel = document.getElementById("panel-estadisticas");
+  const visible = panel.classList.toggle("visible");
+  if (visible) cargarEstadisticas();
+});
 document.getElementById("btnGeoJSON").addEventListener("click", descargarGeoJSON);
+document.getElementById("btnClosePanel").addEventListener("click", () => {
+  document.getElementById("panel-estadisticas").classList.remove("visible");
+});
+
+// Sidebar toggle
+document.getElementById("sidebarToggle").addEventListener("click", () => {
+  document.getElementById("sidebar").classList.toggle("collapsed");
+});
+
+// Filter group collapse/expand
+document.querySelectorAll(".fg-header").forEach(h => {
+  h.addEventListener("click", () => {
+    h.classList.toggle("open");
+    const body = document.getElementById("body-" + h.dataset.group);
+    if (body) body.classList.toggle("hidden");
+  });
+});
+
+// Panel tabs
+document.querySelectorAll(".panel-tab").forEach(tab => {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll(".panel-tab").forEach(t => t.classList.remove("active"));
+    document.querySelectorAll(".tab-pane").forEach(p => p.classList.remove("active"));
+    tab.classList.add("active");
+    const pane = document.getElementById("tab-" + tab.dataset.tab);
+    if (pane) pane.classList.add("active");
+  });
+});
 
 document.getElementById("departamento").addEventListener("change", async (e) => {
   await cargarProvincias(e.target.value);
@@ -643,8 +674,10 @@ document.getElementById("provincia").addEventListener("change", async (e) => {
 document.getElementById("distrito").addEventListener("change", cargar);
 
 document.querySelectorAll('input[name="gravedad"]').forEach(e => e.addEventListener("change", applyClientFilters));
-document.querySelectorAll('input[name="tipo"]').forEach(e => e.addEventListener("change", applyClientFilters));
 document.querySelectorAll('input[name="fuente"]').forEach(e => e.addEventListener("change", applyClientFilters));
 
 cargarDepartamentos().then(cargarTipos).then(cargar);
 initWebSocket();
+
+// Expose globally for onclick handlers in HTML
+window.setFechaRapida = setFechaRapida;

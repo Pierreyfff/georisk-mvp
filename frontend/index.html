@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>GeoRisk Analytics - Mapa Inteligente de Accidentes</title>
+    <title>GeoRisk Analytics — Sistema de Riesgo Vial</title>
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.1/dist/MarkerCluster.css" />
@@ -11,432 +11,703 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
     <style>
-      * { box-sizing: border-box; margin: 0; padding: 0; }
-      html, body { height: 100%; width: 100%; }
-      body { 
+      /* ===== VARIABLES ===== */
+      :root {
+        --bg: #f1f5f9;
+        --sidebar-bg: #ffffff;
+        --sidebar-border: #e2e8f0;
+        --sidebar-w: 276px;
+        --sidebar-w-col: 58px;
+        --kpibar-h: 62px;
+        --statusbar-h: 28px;
+        --text-primary: #0f172a;
+        --text-secondary: #475569;
+        --text-muted: #94a3b8;
+        --primary: #2563eb;
+        --primary-dark: #1d4ed8;
+        --primary-light: #eff6ff;
+        --primary-ring: rgba(37,99,235,0.15);
+        --danger: #dc2626;
+        --danger-light: #fef2f2;
+        --warning: #d97706;
+        --warning-light: #fffbeb;
+        --success: #16a34a;
+        --success-light: #f0fdf4;
+        --border: #e2e8f0;
+        --input-bg: #f8fafc;
+        --input-border: #cbd5e1;
+        --shadow-sm: 0 1px 3px rgba(0,0,0,0.07), 0 1px 2px rgba(0,0,0,0.05);
+        --shadow-md: 0 4px 16px rgba(0,0,0,0.09);
+        --shadow-lg: 0 12px 40px rgba(0,0,0,0.13);
+        --radius: 8px;
+        --radius-lg: 12px;
+        --ease: cubic-bezier(0.4,0,0.2,1);
+        --dur: 0.22s;
+      }
+
+      /* ===== RESET ===== */
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+      html, body { height: 100%; width: 100%; overflow: hidden; }
+      body {
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-        color: #1e293b;
+        background: var(--bg);
+        color: var(--text-primary);
+        font-size: 13px;
+        line-height: 1.5;
       }
 
-      #topbar {
-        padding: 16px 20px;
+      /* ===== SHELL ===== */
+      .app-shell {
         display: flex;
-        flex-wrap: wrap;
-        gap: 16px;
-        align-items: flex-start;
-        background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
-        border-bottom: 1px solid #334155;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        height: calc(100vh - var(--statusbar-h));
+        overflow: hidden;
       }
 
-      .filter-section {
+      /* ===== SIDEBAR ===== */
+      #sidebar {
+        width: var(--sidebar-w);
+        min-width: var(--sidebar-w);
+        background: var(--sidebar-bg);
+        border-right: 1px solid var(--sidebar-border);
         display: flex;
         flex-direction: column;
-        gap: 6px;
-        padding: 12px 16px;
-        border-radius: 10px;
-        background: rgba(255,255,255,0.05);
-        border: 1px solid #334155;
-        transition: all 0.2s ease;
+        transition: width var(--dur) var(--ease), min-width var(--dur) var(--ease);
+        overflow: hidden;
+        position: relative;
+        z-index: 100;
+        box-shadow: var(--shadow-sm);
       }
+      #sidebar.collapsed { width: var(--sidebar-w-col); min-width: var(--sidebar-w-col); }
 
-      .filter-section:hover {
-        background: rgba(255,255,255,0.08);
-        border-color: #475569;
+      .sidebar-header {
+        height: var(--kpibar-h);
+        display: flex; align-items: center;
+        padding: 0 12px;
+        border-bottom: 1px solid var(--border);
+        gap: 10px; flex-shrink: 0;
       }
-
-      .filter-section:last-child { border-right: none; }
-
-      .filter-section label {
-        font-size: 11px;
-        font-weight: 700;
-        color: #94a3b8;
-        text-transform: uppercase;
-        letter-spacing: 0.8px;
-        display: flex;
-        align-items: center;
-        gap: 6px;
-      }
-
-      .filter-section label::before {
-        content: '▸';
-        color: #3b82f6;
-        font-size: 10px;
-      }
-
-      .filter-section select, .filter-section input {
-        padding: 10px 14px;
-        border: 1px solid #475569;
-        border-radius: 8px;
-        font-size: 13px;
-        background: #1e293b;
-        color: #f1f5f9;
-        min-width: 150px;
-        transition: all 0.2s ease;
-      }
-
-      .filter-section select:hover, .filter-section input:hover {
-        border-color: #64748b;
-      }
-
-      .filter-section select:focus, .filter-section input:focus {
-        outline: none;
-        border-color: #3b82f6;
-        box-shadow: 0 0 0 3px rgba(59,130,246,0.25);
-        background: #0f172a;
-      }
-
-      .filter-section select option {
-        background: #1e293b;
-        color: #f1f5f9;
-      }
-
-      .checkbox-group {
-        display: flex;
-        gap: 10px;
-        flex-wrap: wrap;
-      }
-
-      .checkbox-group label {
-        font-size: 13px;
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        color: #cbd5e1;
-        cursor: pointer;
-        padding: 6px 10px;
-        border-radius: 6px;
-        background: rgba(255,255,255,0.05);
-        border: 1px solid transparent;
-        transition: all 0.2s ease;
-        text-transform: none;
-        font-weight: 500;
-      }
-
-      .checkbox-group label::before { content: none; }
-
-      .checkbox-group label:hover {
-        background: rgba(255,255,255,0.1);
-        border-color: #475569;
-      }
-
-      .checkbox-group input[type="checkbox"] {
-        width: 16px;
-        height: 16px;
-        accent-color: #3b82f6;
-        cursor: pointer;
-        min-width: auto;
-        border: none;
-        background: transparent;
-      }
-
-      .quick-dates {
-        display: flex;
-        gap: 6px;
-        margin-top: 4px;
-      }
-
-      .quick-dates button {
-        padding: 6px 12px;
-        font-size: 11px;
-        font-weight: 600;
-        background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-        border: none;
-        border-radius: 6px;
-        cursor: pointer;
-        color: #fff;
-        transition: all 0.2s ease;
-        box-shadow: 0 2px 4px rgba(59,130,246,0.3);
-      }
-
-      .quick-dates button:hover { 
+      .brand { display: flex; align-items: center; gap: 10px; flex: 1; overflow: hidden; min-width: 0; }
+      .brand-icon {
+        width: 34px; height: 34px;
         background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
-        transform: translateY(-1px);
-        box-shadow: 0 4px 8px rgba(59,130,246,0.4);
+        border-radius: 9px;
+        display: flex; align-items: center; justify-content: center;
+        flex-shrink: 0;
+        box-shadow: 0 2px 8px rgba(37,99,235,0.28);
+      }
+      .brand-icon svg { color: #fff; }
+      .brand-text { overflow: hidden; transition: opacity var(--dur) var(--ease), max-width var(--dur) var(--ease); max-width: 200px; }
+      .brand-text h1 { font-size: 15px; font-weight: 800; color: var(--text-primary); white-space: nowrap; letter-spacing: -0.4px; }
+      .brand-text p { font-size: 10px; color: var(--text-muted); white-space: nowrap; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; }
+      #sidebar.collapsed .brand-text { opacity: 0; max-width: 0; }
+
+      .sidebar-toggle {
+        width: 28px; height: 28px;
+        border: 1px solid var(--border); border-radius: 7px;
+        background: var(--input-bg); cursor: pointer;
+        display: flex; align-items: center; justify-content: center;
+        flex-shrink: 0; color: var(--text-secondary);
+        transition: all var(--dur);
+      }
+      .sidebar-toggle:hover { background: var(--border); color: var(--text-primary); }
+      .sidebar-toggle svg { transition: transform var(--dur) var(--ease); }
+      #sidebar.collapsed .sidebar-toggle svg { transform: rotate(180deg); }
+
+      .sidebar-body { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 8px 0; }
+      .sidebar-body::-webkit-scrollbar { width: 3px; }
+      .sidebar-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+      /* Filter Groups */
+      .filter-group { margin-bottom: 1px; }
+      .fg-header {
+        display: flex; align-items: center; gap: 10px;
+        padding: 9px 12px; cursor: pointer;
+        transition: background var(--dur);
+        user-select: none; color: var(--text-secondary);
+      }
+      .fg-header:hover { background: var(--bg); }
+      .fg-header.open { color: var(--primary); }
+      .fg-icon {
+        width: 20px; height: 20px; flex-shrink: 0;
+        display: flex; align-items: center; justify-content: center;
+      }
+      .fg-label {
+        font-size: 11px; font-weight: 700;
+        flex: 1; white-space: nowrap; overflow: hidden;
+        text-transform: uppercase; letter-spacing: 0.6px;
+        transition: opacity var(--dur);
+      }
+      .fg-chevron { flex-shrink: 0; transition: transform var(--dur) var(--ease); color: var(--text-muted); }
+      .fg-header.open .fg-chevron { transform: rotate(90deg); }
+      #sidebar.collapsed .fg-label,
+      #sidebar.collapsed .fg-chevron { opacity: 0; pointer-events: none; width: 0; overflow: hidden; }
+
+      .fg-body { padding: 4px 12px 12px; display: flex; flex-direction: column; gap: 7px; }
+      .fg-body.hidden { display: none; }
+      #sidebar.collapsed .fg-body { display: none; }
+
+      #sidebar.collapsed .fg-icon[data-tip] { position: relative; cursor: default; }
+      #sidebar.collapsed .fg-icon[data-tip]:hover::after {
+        content: attr(data-tip);
+        position: absolute;
+        left: calc(100% + 12px); top: 50%;
+        transform: translateY(-50%);
+        background: var(--text-primary); color: white;
+        padding: 4px 9px; border-radius: 6px;
+        font-size: 11px; font-weight: 600;
+        white-space: nowrap; pointer-events: none; z-index: 9999;
       }
 
-      #topbar button {
-        padding: 10px 20px;
-        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-        color: #fff;
-        border: none;
-        border-radius: 8px;
-        font-size: 13px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.2s ease;
-        margin-top: auto;
-        box-shadow: 0 2px 8px rgba(16,185,129,0.3);
+      /* Form Controls */
+      .form-label {
+        font-size: 10px; font-weight: 700;
+        color: var(--text-muted);
+        text-transform: uppercase; letter-spacing: 0.5px;
+        margin-bottom: 3px; display: block;
+      }
+      select, input[type="date"] {
+        width: 100%; padding: 7px 10px;
+        border: 1px solid var(--input-border);
+        border-radius: var(--radius);
+        font-size: 12px; font-family: inherit;
+        background: var(--input-bg); color: var(--text-primary);
+        transition: border-color var(--dur), box-shadow var(--dur), background var(--dur);
+        appearance: none; -webkit-appearance: none;
+      }
+      select {
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+        background-repeat: no-repeat; background-position: right 9px center; padding-right: 28px;
+      }
+      select:focus, input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-ring); background: #fff; }
+      select:hover, input:hover { border-color: #94a3b8; }
+
+      .quick-dates { display: flex; gap: 4px; flex-wrap: wrap; }
+      .quick-dates button {
+        padding: 4px 9px; font-size: 11px; font-weight: 600;
+        background: var(--input-bg); border: 1px solid var(--border);
+        border-radius: 6px; cursor: pointer; color: var(--text-secondary);
+        transition: all var(--dur); font-family: inherit;
+      }
+      .quick-dates button:hover { background: var(--primary-light); border-color: var(--primary); color: var(--primary); }
+
+      /* Check Items */
+      .check-item {
+        display: flex; align-items: center; gap: 8px;
+        padding: 6px 8px; border-radius: var(--radius);
+        border: 1px solid var(--border); background: var(--input-bg);
+        cursor: pointer; transition: all var(--dur);
+        font-size: 12px; font-weight: 500; color: var(--text-secondary);
+      }
+      .check-item:hover { border-color: var(--primary); background: var(--primary-light); color: var(--primary); }
+      .check-item input[type="checkbox"] {
+        width: 14px; height: 14px; accent-color: var(--primary);
+        cursor: pointer; flex-shrink: 0;
+        border: none; background: transparent; padding: 0;
+      }
+      .check-item.c-alta:has(:checked) { border-color: var(--danger); background: var(--danger-light); color: var(--danger); }
+      .check-item.c-media:has(:checked) { border-color: var(--warning); background: var(--warning-light); color: var(--warning); }
+      .check-item.c-baja:has(:checked) { border-color: var(--success); background: var(--success-light); color: var(--success); }
+      .chk-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+      /* Sidebar Footer */
+      .sidebar-footer {
+        padding: 10px 12px; border-top: 1px solid var(--border);
+        display: flex; flex-direction: column; gap: 6px; flex-shrink: 0;
+      }
+      #sidebar.collapsed .sidebar-footer { padding: 8px 7px; }
+
+      /* Buttons */
+      .btn {
+        display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+        padding: 9px 14px; border: none; border-radius: var(--radius);
+        font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit;
+        transition: all var(--dur); white-space: nowrap;
+      }
+      .btn-primary {
+        background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+        color: #fff; box-shadow: 0 2px 8px rgba(37,99,235,0.22);
+      }
+      .btn-primary:hover { background: linear-gradient(135deg, var(--primary-dark), #1e40af); box-shadow: 0 4px 14px rgba(37,99,235,0.32); transform: translateY(-1px); }
+      .btn-secondary { background: var(--input-bg); color: var(--text-secondary); border: 1px solid var(--border); }
+      .btn-secondary:hover { background: var(--border); color: var(--text-primary); transform: translateY(-1px); }
+      .btn-ghost { background: transparent; color: var(--text-secondary); border: 1px solid transparent; }
+      .btn-ghost:hover { background: var(--bg); border-color: var(--border); color: var(--text-primary); }
+      .btn-active { background: linear-gradient(135deg, #f59e0b, #d97706) !important; color: #fff !important; border-color: transparent !important; box-shadow: 0 2px 8px rgba(245,158,11,0.28); }
+      #sidebar.collapsed .btn span { display: none; }
+      #sidebar.collapsed .btn { padding: 9px; justify-content: center; }
+
+      /* ===== MAIN CONTENT ===== */
+      .main-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+
+      /* ===== KPI BAR ===== */
+      #kpi-bar {
+        height: var(--kpibar-h);
+        background: #ffffff; border-bottom: 1px solid var(--border);
+        display: flex; align-items: center;
+        padding: 0 14px; gap: 6px; flex-shrink: 0;
+        box-shadow: var(--shadow-sm);
+      }
+      .kpi-card {
+        display: flex; flex-direction: column; align-items: center;
+        padding: 5px 11px; border-radius: var(--radius);
+        min-width: 66px; border: 1px solid var(--border); background: var(--bg);
+      }
+      .kpi-card .kv { font-size: 19px; font-weight: 800; line-height: 1.1; letter-spacing: -0.5px; }
+      .kpi-card .kl { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: var(--text-muted); }
+      .kpi-card.total { background: var(--primary-light); border-color: #bfdbfe; }
+      .kpi-card.total .kv { color: var(--primary); }
+      .kpi-card.alta { background: var(--danger-light); border-color: #fecaca; }
+      .kpi-card.alta .kv { color: var(--danger); }
+      .kpi-card.media { background: var(--warning-light); border-color: #fde68a; }
+      .kpi-card.media .kv { color: var(--warning); }
+      .kpi-card.baja { background: var(--success-light); border-color: #bbf7d0; }
+      .kpi-card.baja .kv { color: var(--success); }
+      .kpi-divider { width: 1px; height: 30px; background: var(--border); margin: 0 2px; flex-shrink: 0; }
+      .kpi-spacer { flex: 1; }
+      .toolbar { display: flex; align-items: center; gap: 5px; }
+
+      /* WS Badge */
+      .ws-badge {
+        display: flex; align-items: center; gap: 5px;
+        padding: 5px 10px; border-radius: 20px;
+        font-size: 11px; font-weight: 600;
+        border: 1px solid var(--border); white-space: nowrap;
+      }
+      .ws-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+      .ws-badge.connected { background: var(--success-light); border-color: #bbf7d0; color: var(--success); }
+      .ws-badge.connected .ws-dot { background: var(--success); animation: pulse 2s infinite; }
+      .ws-badge.disconnected { background: var(--danger-light); border-color: #fecaca; color: var(--danger); }
+      .ws-badge.disconnected .ws-dot { background: var(--danger); }
+      @keyframes pulse {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(22,163,74,0.5); }
+        50% { box-shadow: 0 0 0 5px rgba(22,163,74,0); }
       }
 
-      #topbar button:hover { 
-        background: linear-gradient(135deg, #059669 0%, #047857 100%);
-        transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(16,185,129,0.4);
+      /* ===== MAP ===== */
+      #map { flex: 1; z-index: 1; min-height: 0; }
+
+      /* Leaflet popup overrides */
+      .leaflet-popup-content-wrapper {
+        border-radius: var(--radius-lg) !important;
+        box-shadow: var(--shadow-lg) !important;
+        border: 1px solid var(--border) !important;
+        padding: 0 !important; overflow: hidden;
       }
+      .leaflet-popup-content { margin: 0 !important; }
+      .leaflet-popup-tip { background: white !important; }
 
-      #topbar button.secondary { 
-        background: linear-gradient(135deg, #475569 0%, #334155 100%);
-        color: #f1f5f9;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.2);
-      }
-
-      #topbar button.secondary:hover { 
-        background: linear-gradient(135deg, #64748b 0%, #475569 100%);
-        transform: translateY(-1px);
-      }
-
-      #topbar button.active {
-        background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-        box-shadow: 0 2px 8px rgba(245,158,11,0.4);
-      }
-
-      #statsbar {
-        padding: 12px 16px;
-        display: flex;
-        gap: 24px;
-        align-items: center;
-        background: #1e293b;
-        color: #fff;
-        flex-wrap: wrap;
-      }
-
-      .stat-card { display: flex; flex-direction: column; gap: 2px; }
-      .stat-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: #94a3b8; }
-      .stat-value { font-size: 18px; font-weight: 700; }
-      .stat-card.alta .stat-value { color: #ef4444; }
-      .stat-card.media .stat-value { color: #f59e0b; }
-      .stat-card.baja .stat-value { color: #22c55e; }
-      .stat-card.total .stat-value { color: #fff; }
-
-      #map { height: calc(100vh - 162px); }
-
+      /* ===== STATS PANEL ===== */
       #panel-estadisticas {
         position: fixed;
-        top: 100px;
-        right: 16px;
-        width: 360px;
-        background: #fff;
-        border-radius: 12px;
-        box-shadow: 0 10px 40px rgba(0,0,0,0.15);
-        z-index: 1000;
-        display: none;
-        max-height: calc(100vh - 160px);
-        overflow-y: auto;
+        top: calc(var(--kpibar-h) + 12px);
+        right: 16px; width: 390px;
+        background: #fff; border: 1px solid var(--border);
+        border-radius: var(--radius-lg); box-shadow: var(--shadow-lg);
+        z-index: 1000; display: none;
+        max-height: calc(100vh - var(--kpibar-h) - var(--statusbar-h) - 30px);
+        overflow: hidden; flex-direction: column;
       }
+      #panel-estadisticas.visible { display: flex; }
 
-      #panel-estadisticas.visible { display: block; }
-
-      #panel-estadisticas .panel-header {
-        padding: 16px;
-        border-bottom: 1px solid #e2e8f0;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
+      .panel-header {
+        display: flex; align-items: center; gap: 10px;
+        padding: 13px 16px; border-bottom: 1px solid var(--border); flex-shrink: 0;
       }
-
-      #panel-estadisticas .panel-header h3 { font-size: 16px; font-weight: 600; color: #1e293b; }
-      #panel-estadisticas .panel-header button { background: none; border: none; font-size: 20px; cursor: pointer; color: #64748b; }
-
-      #panel-estadisticas .panel-body { padding: 16px; }
-      #panel-estadisticas .stat-section { margin-bottom: 20px; }
-      #panel-estadisticas .stat-section h4 { font-size: 12px; font-weight: 600; color: #64748b; text-transform: uppercase; margin-bottom: 12px; }
-
-      #panel-estadisticas .top-distrito {
-        display: flex;
-        justify-content: space-between;
-        padding: 8px 0;
-        border-bottom: 1px solid #f1f5f9;
-        font-size: 13px;
+      .panel-header h3 { font-size: 14px; font-weight: 700; color: var(--text-primary); flex: 1; }
+      .panel-close {
+        width: 26px; height: 26px; border: none; background: var(--bg);
+        border-radius: 7px; cursor: pointer;
+        display: flex; align-items: center; justify-content: center;
+        color: var(--text-muted); transition: all var(--dur);
       }
+      .panel-close:hover { background: var(--border); color: var(--text-primary); }
 
-      #panel-estadisticas .top-distrito .nombre { color: #334155; }
-      #panel-estadisticas .top-distrito .valor { font-weight: 600; color: #1e293b; }
-
-      #panel-estadisticas .chart-bar {
-        height: 24px;
-        background: #f1f5f9;
-        border-radius: 4px;
-        margin-bottom: 8px;
-        overflow: hidden;
-        display: flex;
+      .panel-tabs { display: flex; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+      .panel-tab {
+        flex: 1; padding: 9px;
+        font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+        color: var(--text-muted); border: none; background: transparent; cursor: pointer;
+        border-bottom: 2px solid transparent; transition: all var(--dur); font-family: inherit;
       }
+      .panel-tab:hover { color: var(--text-primary); background: var(--bg); }
+      .panel-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
 
-      #panel-estadisticas .chart-bar .bar-segment { height: 100%; transition: width 0.3s; }
-      #panel-estadisticas .chart-bar .alta { background: #ef4444; }
-      #panel-estadisticas .chart-bar .media { background: #f59e0b; }
-      #panel-estadisticas .chart-bar .baja { background: #22c55e; }
+      .panel-body { overflow-y: auto; flex: 1; padding: 12px 16px; }
+      .panel-body::-webkit-scrollbar { width: 3px; }
+      .panel-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+      .tab-pane { display: none; }
+      .tab-pane.active { display: block; }
 
+      /* Gravity chart */
+      .gravity-bar { height: 22px; background: var(--bg); border-radius: 5px; overflow: hidden; display: flex; margin: 8px 0 10px; }
+      .gravity-bar .seg { height: 100%; transition: width 0.5s ease; }
+      .seg-alta { background: var(--danger); }
+      .seg-media { background: var(--warning); }
+      .seg-baja { background: var(--success); }
+      .gravity-legend { display: flex; gap: 14px; font-size: 12px; }
+      .gravity-legend span { display: flex; align-items: center; gap: 5px; color: var(--text-secondary); }
+      .gdot { width: 8px; height: 8px; border-radius: 50%; }
+
+      /* District row */
+      .district-row {
+        display: flex; align-items: center;
+        padding: 9px 4px; border-bottom: 1px solid var(--bg);
+        gap: 10px; cursor: pointer; border-radius: 6px;
+        transition: background var(--dur), padding var(--dur);
+      }
+      .district-row:hover { background: var(--bg); padding-left: 8px; padding-right: 8px; margin: 0 -4px; }
+      .dist-rank { font-size: 11px; font-weight: 700; color: var(--text-muted); width: 18px; text-align: right; flex-shrink: 0; }
+      .dist-info { flex: 1; min-width: 0; }
+      .dist-name { font-size: 13px; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .dist-sub { font-size: 11px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .dist-bar { width: 56px; height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; flex-shrink: 0; }
+      .dist-bar-fill { height: 100%; background: linear-gradient(to right, var(--primary), #60a5fa); border-radius: 2px; }
+      .dist-count { font-size: 15px; font-weight: 800; color: var(--primary); flex-shrink: 0; min-width: 28px; text-align: right; }
+
+      .type-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--bg); font-size: 12px; }
+      .type-row:last-child { border-bottom: none; }
+      .type-name { color: var(--text-secondary); font-weight: 500; flex: 1; margin-right: 8px; }
+      .type-count { font-weight: 700; color: var(--text-primary); }
+
+      /* ===== STATUS BAR ===== */
       #status-bar {
-        position: fixed;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        height: 32px;
-        background: #1e293b;
-        color: #e2e8f0;
-        font-size: 12px;
-        display: flex;
-        align-items: center;
-        padding: 0 16px;
-        border-top: 1px solid #334155;
-        z-index: 999;
-        font-family: monospace;
+        height: var(--statusbar-h); background: #fff;
+        border-top: 1px solid var(--border);
+        display: flex; align-items: center;
+        padding: 0 14px; gap: 18px;
+        font-size: 11px; color: var(--text-muted); z-index: 200; flex-shrink: 0;
       }
+      .sb-item { display: flex; align-items: center; gap: 4px; }
+      .sb-item strong { color: var(--text-secondary); font-weight: 600; }
 
+      /* ===== LOADING ===== */
       #loading-overlay {
-        position: fixed;
-        top: 0; left: 0; right: 0; bottom: 0;
-        background: rgba(255,255,255,0.8);
-        display: none;
-        align-items: center;
-        justify-content: center;
-        z-index: 2000;
+        position: fixed; inset: 0;
+        background: rgba(241,245,249,0.72);
+        backdrop-filter: blur(3px);
+        display: none; align-items: center; justify-content: center;
+        z-index: 3000; flex-direction: column; gap: 12px;
       }
-
       #loading-overlay.visible { display: flex; }
-
-      .spinner {
-        width: 40px; height: 40px;
-        border: 3px solid #e2e8f0;
-        border-top-color: #3b82f6;
-        border-radius: 50%;
-        animation: spin 0.8s linear infinite;
+      .loading-card {
+        background: #fff; border: 1px solid var(--border); border-radius: var(--radius-lg);
+        padding: 22px 32px;
+        display: flex; flex-direction: column; align-items: center; gap: 12px;
+        box-shadow: var(--shadow-lg);
       }
-
+      .spinner {
+        width: 34px; height: 34px;
+        border: 3px solid var(--border); border-top-color: var(--primary);
+        border-radius: 50%; animation: spin 0.7s linear infinite;
+      }
+      .loading-msg { font-size: 13px; font-weight: 600; color: var(--text-secondary); }
       @keyframes spin { to { transform: rotate(360deg); } }
 
-      #ws-status {
-        font-size: 11px;
-        padding: 4px 8px;
-        border-radius: 4px;
-        margin-left: auto;
-      }
-
-      #ws-status.connected { background: #dcfce7; color: #166534; }
-      #ws-status.disconnected { background: #fee2e2; color: #991b1b; }
-
-      .filter-row { display: flex; gap: 12px; flex-wrap: wrap; }
+      #tipos-checkboxes { display: flex; flex-direction: column; gap: 5px; }
     </style>
   </head>
   <body>
-    <div id="loading-overlay"><div class="spinner"></div></div>
-
-    <div id="topbar">
-      <div class="filter-section">
-        <label>📍 Ubicación</label>
-        <div class="filter-row">
-          <select id="departamento"><option value="">Departamento</option></select>
-          <select id="provincia"><option value="">Provincia</option></select>
-          <select id="distrito"><option value="">Distrito</option></select>
-        </div>
-      </div>
-
-      <div class="filter-section">
-        <label>📅 Rango de Fechas</label>
-        <div class="filter-row">
-          <input type="date" id="fecha_desde" placeholder="Desde" />
-          <input type="date" id="fecha_hasta" placeholder="Hasta" />
-        </div>
-        <div class="quick-dates">
-          <button onclick="setFechaRapida('hoy')">Hoy</button>
-          <button onclick="setFechaRapida('7d')">7 días</button>
-          <button onclick="setFechaRapida('30d')">30 días</button>
-          <button onclick="setFechaRapida('90d')">90 días</button>
-          <button onclick="setFechaRapida('1y')">1 año</button>
-        </div>
-      </div>
-
-      <div class="filter-section">
-        <label>⚠️ Gravedad</label>
-        <div class="checkbox-group">
-          <label style="color: #ef4444;"><input type="checkbox" name="gravedad" value="Alta"> Alta</label>
-          <label style="color: #f59e0b;"><input type="checkbox" name="gravedad" value="Media"> Media</label>
-          <label style="color: #22c55e;"><input type="checkbox" name="gravedad" value="Baja"> Baja</label>
-        </div>
-      </div>
-
-      <div class="filter-section">
-        <label>🚗 Tipo de Accidente</label>
-        <div class="checkbox-group" id="tipos-checkboxes"></div>
-      </div>
-
-      <div class="filter-section">
-        <label>📊 Fuente</label>
-        <div class="checkbox-group">
-          <label><input type="checkbox" name="fuente" value="SRATMA"> SRATMA</label>
-          <label><input type="checkbox" name="fuente" value="simulator"> Simulator</label>
-        </div>
-      </div>
-
-      <div class="filter-section" style="background: transparent; border: none; padding: 12px 0;">
-        <label>🎯 Acciones</label>
-        <div style="display:flex;gap:8px; flex-wrap: wrap;">
-          <button id="btnCargar">▶ Cargar</button>
-          <button id="btnLimpiar" class="secondary">⟲ Limpiar</button>
-          <button id="btnHeatmap" class="secondary">🔥 Mapa Calor</button>
-          <button id="btnEstadisticas" class="secondary">📈 Estadísticas</button>
-          <button id="btnGeoJSON" class="secondary">⬇ GeoJSON</button>
-        </div>
-      </div>
-
-      <span id="ws-status" class="disconnected">⚫ WS: Desconectado</span>
+  <!-- LOADING -->
+  <div id="loading-overlay">
+    <div class="loading-card">
+      <div class="spinner"></div>
+      <span class="loading-msg">Cargando datos...</span>
     </div>
+  </div>
 
-    <div id="statsbar">
-      <div class="stat-card total">
-        <span class="stat-label">Total</span>
-        <span class="stat-value" id="kpiTotal">0</span>
-      </div>
-      <div class="stat-card alta">
-        <span class="stat-label">Alta</span>
-        <span class="stat-value" id="kpiAlta">0</span>
-      </div>
-      <div class="stat-card media">
-        <span class="stat-label">Media</span>
-        <span class="stat-value" id="kpiMedia">0</span>
-      </div>
-      <div class="stat-card baja">
-        <span class="stat-label">Baja</span>
-        <span class="stat-value" id="kpiBaja">0</span>
-      </div>
-    </div>
+  <div class="app-shell">
 
-    <div id="panel-estadisticas">
-      <div class="panel-header">
-        <h3>Estadísticas (Último año)</h3>
-        <button onclick="document.getElementById('panel-estadisticas').classList.remove('visible')">×</button>
-      </div>
-      <div class="panel-body">
-        <div class="stat-section">
-          <h4>Top 10 Distritos</h4>
-          <div id="top-distritos"></div>
-        </div>
-        <div class="stat-section">
-          <h4>Por Gravedad</h4>
-          <div class="chart-bar" id="chart-gravedad">
-            <div class="bar-segment alta" style="width: 0%"></div>
-            <div class="bar-segment media" style="width: 0%"></div>
-            <div class="bar-segment baja" style="width: 0%"></div>
+    <!-- ===== SIDEBAR ===== -->
+    <aside id="sidebar">
+      <div class="sidebar-header">
+        <div class="brand">
+          <div class="brand-icon">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            </svg>
           </div>
-          <div style="display: flex; gap: 16px; font-size: 12px; color: #64748b;">
-            <span><span style="color:#ef4444">●</span> Alta: <span id="stat-alta">0</span></span>
-            <span><span style="color:#f59e0b">●</span> Media: <span id="stat-media">0</span></span>
-            <span><span style="color:#22c55e">●</span> Baja: <span id="stat-baja">0</span></span>
+          <div class="brand-text">
+            <h1>GeoRisk</h1>
+            <p>Analytics Pro</p>
           </div>
         </div>
+        <button id="sidebarToggle" class="sidebar-toggle" title="Colapsar panel">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M15 18l-6-6 6-6"/>
+          </svg>
+        </button>
       </div>
+
+      <div class="sidebar-body">
+
+        <!-- UBICACION -->
+        <div class="filter-group">
+          <div class="fg-header open" data-group="location">
+            <span class="fg-icon" data-tip="Ubicación">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
+              </svg>
+            </span>
+            <span class="fg-label">Ubicación</span>
+            <svg class="fg-chevron" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 18l6-6-6-6"/>
+            </svg>
+          </div>
+          <div class="fg-body" id="body-location">
+            <div>
+              <label class="form-label">Departamento</label>
+              <select id="departamento"><option value="">Todos los departamentos</option></select>
+            </div>
+            <div>
+              <label class="form-label">Provincia</label>
+              <select id="provincia"><option value="">Todas las provincias</option></select>
+            </div>
+            <div>
+              <label class="form-label">Distrito</label>
+              <select id="distrito"><option value="">Todos los distritos</option></select>
+            </div>
+          </div>
+        </div>
+
+        <!-- FECHAS -->
+        <div class="filter-group">
+          <div class="fg-header open" data-group="dates">
+            <span class="fg-icon" data-tip="Fechas">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+              </svg>
+            </span>
+            <span class="fg-label">Rango de Fechas</span>
+            <svg class="fg-chevron" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 18l6-6-6-6"/>
+            </svg>
+          </div>
+          <div class="fg-body" id="body-dates">
+            <div>
+              <label class="form-label">Desde</label>
+              <input type="date" id="fecha_desde" />
+            </div>
+            <div>
+              <label class="form-label">Hasta</label>
+              <input type="date" id="fecha_hasta" />
+            </div>
+            <div class="quick-dates">
+              <button onclick="setFechaRapida('hoy')">Hoy</button>
+              <button onclick="setFechaRapida('7d')">7d</button>
+              <button onclick="setFechaRapida('30d')">30d</button>
+              <button onclick="setFechaRapida('90d')">90d</button>
+              <button onclick="setFechaRapida('1y')">1 año</button>
+              <button onclick="setFechaRapida('all')">Todo</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- GRAVEDAD -->
+        <div class="filter-group">
+          <div class="fg-header open" data-group="gravity">
+            <span class="fg-icon" data-tip="Gravedad">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+              </svg>
+            </span>
+            <span class="fg-label">Gravedad</span>
+            <svg class="fg-chevron" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 18l6-6-6-6"/>
+            </svg>
+          </div>
+          <div class="fg-body" id="body-gravity">
+            <label class="check-item c-alta">
+              <input type="checkbox" name="gravedad" value="Alta">
+              <span class="chk-dot" style="background:#dc2626"></span>
+              Alta gravedad
+            </label>
+            <label class="check-item c-media">
+              <input type="checkbox" name="gravedad" value="Media">
+              <span class="chk-dot" style="background:#d97706"></span>
+              Media gravedad
+            </label>
+            <label class="check-item c-baja">
+              <input type="checkbox" name="gravedad" value="Baja">
+              <span class="chk-dot" style="background:#16a34a"></span>
+              Baja gravedad
+            </label>
+          </div>
+        </div>
+
+        <!-- TIPO DE ACCIDENTE -->
+        <div class="filter-group">
+          <div class="fg-header" data-group="types">
+            <span class="fg-icon" data-tip="Tipo">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+              </svg>
+            </span>
+            <span class="fg-label">Tipo de Accidente</span>
+            <svg class="fg-chevron" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 18l6-6-6-6"/>
+            </svg>
+          </div>
+          <div class="fg-body hidden" id="body-types">
+            <div id="tipos-checkboxes"></div>
+          </div>
+        </div>
+
+        <!-- FUENTE -->
+        <div class="filter-group">
+          <div class="fg-header" data-group="source">
+            <span class="fg-icon" data-tip="Fuente">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
+              </svg>
+            </span>
+            <span class="fg-label">Fuente de Datos</span>
+            <svg class="fg-chevron" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 18l6-6-6-6"/>
+            </svg>
+          </div>
+          <div class="fg-body hidden" id="body-source">
+            <label class="check-item">
+              <input type="checkbox" name="fuente" value="SRATMA">
+              <span class="chk-dot" style="background:#2563eb"></span>
+              SRATMA
+            </label>
+            <label class="check-item">
+              <input type="checkbox" name="fuente" value="simulator">
+              <span class="chk-dot" style="background:#7c3aed"></span>
+              Simulador
+            </label>
+          </div>
+        </div>
+
+      </div><!-- /sidebar-body -->
+
+      <div class="sidebar-footer">
+        <button id="btnCargar" class="btn btn-primary">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <span>Aplicar filtros</span>
+        </button>
+        <button id="btnLimpiar" class="btn btn-secondary">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.51"/>
+          </svg>
+          <span>Limpiar</span>
+        </button>
+      </div>
+    </aside><!-- /sidebar -->
+
+    <!-- ===== MAIN CONTENT ===== -->
+    <div class="main-content">
+
+      <!-- KPI BAR -->
+      <div id="kpi-bar">
+        <div class="kpi-card total">
+          <span class="kv" id="kpiTotal">0</span>
+          <span class="kl">Total</span>
+        </div>
+        <div class="kpi-card alta">
+          <span class="kv" id="kpiAlta">0</span>
+          <span class="kl">Alta</span>
+        </div>
+        <div class="kpi-card media">
+          <span class="kv" id="kpiMedia">0</span>
+          <span class="kl">Media</span>
+        </div>
+        <div class="kpi-card baja">
+          <span class="kv" id="kpiBaja">0</span>
+          <span class="kl">Baja</span>
+        </div>
+        <div class="kpi-divider"></div>
+        <div class="kpi-spacer"></div>
+        <div class="toolbar">
+          <button id="btnHeatmap" class="btn btn-ghost">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2a7 7 0 0 1 7 7c0 5-7 13-7 13S5 14 5 9a7 7 0 0 1 7-7z"/><circle cx="12" cy="9" r="2.5"/>
+            </svg>
+            <span>Mapa de Calor</span>
+          </button>
+          <button id="btnEstadisticas" class="btn btn-ghost">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
+            </svg>
+            <span>Estadísticas</span>
+          </button>
+          <button id="btnGeoJSON" class="btn btn-ghost">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            <span>Exportar</span>
+          </button>
+        </div>
+        <div class="kpi-divider"></div>
+        <span id="ws-status" class="ws-badge disconnected">
+          <span class="ws-dot"></span>
+          <span id="ws-label">Desconectado</span>
+        </span>
+      </div><!-- /kpi-bar -->
+
+      <!-- MAP -->
+      <div id="map"></div>
+
+      <!-- STATISTICS PANEL -->
+      <div id="panel-estadisticas">
+        <div class="panel-header">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--primary);flex-shrink:0">
+            <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
+          </svg>
+          <h3>Estadísticas del Sistema</h3>
+          <button class="panel-close" id="btnClosePanel">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+        <div class="panel-tabs">
+          <button class="panel-tab active" data-tab="distritos">Top Distritos</button>
+          <button class="panel-tab" data-tab="gravedad">Gravedad</button>
+          <button class="panel-tab" data-tab="tipos">Por Tipo</button>
+        </div>
+        <div class="panel-body">
+          <div class="tab-pane active" id="tab-distritos">
+            <div id="top-distritos"></div>
+          </div>
+          <div class="tab-pane" id="tab-gravedad">
+            <div class="gravity-bar" id="chart-gravedad">
+              <div class="seg seg-alta" style="width:0%"></div>
+              <div class="seg seg-media" style="width:0%"></div>
+              <div class="seg seg-baja" style="width:0%"></div>
+            </div>
+            <div class="gravity-legend">
+              <span><span class="gdot" style="background:#dc2626"></span>Alta: <strong id="stat-alta">0</strong></span>
+              <span><span class="gdot" style="background:#d97706"></span>Media: <strong id="stat-media">0</strong></span>
+              <span><span class="gdot" style="background:#16a34a"></span>Baja: <strong id="stat-baja">0</strong></span>
+            </div>
+          </div>
+          <div class="tab-pane" id="tab-tipos">
+            <div id="top-tipos"></div>
+          </div>
+        </div>
+      </div><!-- /panel-estadisticas -->
+
+    </div><!-- /main-content -->
+  </div><!-- /app-shell -->
+
+  <!-- STATUS BAR -->
+  <div id="status-bar">
+    <div class="sb-item">
+      <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor" style="color:var(--success)"><circle cx="12" cy="12" r="10"/></svg>
+      <span id="status-text">Iniciando sistema...</span>
     </div>
+    <div class="sb-item">En pantalla: <strong id="status-count">0</strong> registros</div>
+    <div class="sb-item">Actualizado: <strong id="status-time">—</strong></div>
+  </div>
 
-    <div id="map"></div>
-    <div id="status-bar">🟢 Conectado | Cargando... | ⚡ Tiempo real activo</div>
-
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://unpkg.com/leaflet.markercluster@1.5.1/dist/leaflet.markercluster.js"></script>
-    <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
-    <script src="/socket.io/socket.io.js"></script>
-    <script src="./vendor/osmtogeojson.js"></script>
-    <script type="module" src="./app.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.1/dist/leaflet.markercluster.js"></script>
+  <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="./vendor/osmtogeojson.js"></script>
+  <script type="module" src="./app.js"></script>
   </body>
 </html>

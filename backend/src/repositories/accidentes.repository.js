@@ -289,7 +289,7 @@ async function findAdvanced(filters = {}) {
     radio_km,
   });
 
-  const limitVal = Number(limit) || 100;
+  const limitVal = Number(limit) || 100000;
   const offsetVal = Number(offset) || 0;
 
   const countQuery = `
@@ -353,7 +353,7 @@ async function findAsGeoJSON(filters = {}) {
     radio_km,
   });
 
-  const limitVal = Math.min(Number(limit) || 1000, 5000);
+  const limitVal = Number(limit) || 100000;
 
   const query = `
     SELECT
