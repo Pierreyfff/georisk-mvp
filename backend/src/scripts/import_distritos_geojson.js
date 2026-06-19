@@ -22,8 +22,7 @@ async function main() {
   try {
     await client.query("BEGIN");
 
-    // OJO: aquí sanitizamos geometría en SQL para evitar "invalid GeoJSON representation"
-    const sql = `
+    const insertSql = `
       INSERT INTO distritos (ubigeo, departamento, provincia, distrito, geom)
       VALUES (
         $1, $2, $3, $4,
@@ -43,8 +42,33 @@ async function main() {
         geom = EXCLUDED.geom;
     `;
 
+    const validateSql = `
+      SELECT ST_IsValid(
+        ST_Multi(
+          ST_CollectionExtract(
+            ST_MakeValid(
+              ST_SetSRID(ST_GeomFromGeoJSON($1), 4326)
+            ),
+            3
+          )
+        )
+      ) AS valid,
+      ST_IsValidReason(
+        ST_Multi(
+          ST_CollectionExtract(
+            ST_MakeValid(
+              ST_SetSRID(ST_GeomFromGeoJSON($1), 4326)
+            ),
+            3
+          )
+        )
+      ) AS reason;
+    `;
+
     let ok = 0;
     let skipped = 0;
+    let invalidGeoms = 0;
+    const UBIGEO_BUFFER = new Map();
 
     for (const f of fc.features) {
       const p = f?.properties || {};
@@ -61,27 +85,39 @@ async function main() {
         continue;
       }
 
-      // Importante: pasar SOLO el geometry object como string GeoJSON
       const geomJson = JSON.stringify(geom);
 
       const departamento = p.NOMBDEP != null ? String(p.NOMBDEP).trim() : null;
       const provincia = p.NOMBPROV != null ? String(p.NOMBPROV).trim() : null;
       const distrito = p.NOMBDIST != null ? String(p.NOMBDIST).trim() : null;
 
+      // Validar geometría antes de insertar
+      const valResult = await client.query(validateSql, [geomJson]);
+      if (!valResult.rows[0].valid) {
+        invalidGeoms++;
+        console.warn(`Geometría inválida ubigeo=${ubigeo} ${departamento}/${provincia}/${distrito}: ${valResult.rows[0].reason}`);
+      }
+
+      // Evitar duplicados de ubigeo en el mismo archivo
+      if (UBIGEO_BUFFER.has(ubigeo)) {
+        const prev = UBIGEO_BUFFER.get(ubigeo);
+        console.warn(`Ubigeo duplicado en GeoJSON: ${ubigeo} ${departamento}/${provincia}/${distrito} (previo: ${prev.departamento}/${prev.provincia}/${prev.distrito})`);
+      }
+      UBIGEO_BUFFER.set(ubigeo, { departamento, provincia, distrito });
+
       try {
-        await client.query(sql, [ubigeo, departamento, provincia, distrito, geomJson]);
+        await client.query(insertSql, [ubigeo, departamento, provincia, distrito, geomJson]);
         ok++;
       } catch (e) {
-        // No paramos todo el import por 1 geometría mala
         skipped++;
-        console.error(`Skip ubigeo=${ubigeo}:`, e.message);
+        console.error(`Error insertando ubigeo=${ubigeo} ${departamento}/${provincia}/${distrito}:`, e.message);
       }
 
       if (ok > 0 && ok % 500 === 0) console.log("Importados OK:", ok, "skipped:", skipped);
     }
 
     await client.query("COMMIT");
-    console.log("Import finalizado. OK:", ok, "skipped:", skipped);
+    console.log("Import finalizado. OK:", ok, "skipped:", skipped, "inválidas:", invalidGeoms);
   } catch (e) {
     await client.query("ROLLBACK");
     throw e;

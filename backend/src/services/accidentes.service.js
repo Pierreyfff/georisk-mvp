@@ -58,6 +58,10 @@ async function createAccidente(accidente) {
     fuente,
     external_id,
     raw,
+    vehiculos,
+    entidad,
+    direccion,
+    codigo_externo,
   } = accidente;
 
   if (!fecha || !hora || !distrito || !tipo || !gravedad) {
@@ -101,6 +105,10 @@ async function createAccidente(accidente) {
     fuente: fuente ?? null,
     external_id: external_id ?? null,
     raw: raw ?? null,
+    vehiculos: vehiculos ?? null,
+    entidad: entidad ?? null,
+    direccion: direccion ?? null,
+    codigo_externo: codigo_externo ?? null,
   });
 }
 

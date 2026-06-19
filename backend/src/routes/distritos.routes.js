@@ -3,9 +3,36 @@ const repo = require("../repositories/distritos.repository");
 
 const router = express.Router();
 
-/* =========================
-   NUEVO: GeoJSON por ubigeo
-   ========================= */
+router.get("/geometria/agregada", async (req, res, next) => {
+  try {
+    const { departamento, provincia } = req.query;
+
+    if (!departamento) {
+      return res.status(400).json({ error: "departamento es requerido" });
+    }
+
+    const row = await repo.getAggregatedGeoJson({
+      departamento: String(departamento).trim(),
+      provincia: provincia ? String(provincia).trim() : null,
+    });
+
+    if (!row) {
+      return res.status(404).json({ error: "No se encontraron geometrías" });
+    }
+
+    res.json({
+      type: "Feature",
+      properties: {
+        departamento: row.departamento,
+        provincia: row.provincia || provincia || null,
+      },
+      geometry: row.geometry,
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
 router.get("/:ubigeo/geojson", async (req, res, next) => {
   try {
     const ubigeo = req.params.ubigeo;
@@ -20,7 +47,6 @@ router.get("/:ubigeo/geojson", async (req, res, next) => {
       return res.status(404).json({ error: "Distrito no encontrado" });
     }
 
-    // GeoJSON estándar (Feature)
     res.json({
       type: "Feature",
       properties: {

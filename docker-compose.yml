@@ -30,8 +30,12 @@ services:
       PGUSER: georisk_user
       PGPASSWORD: georisk_pass
       SRATMA_INGEST: "on"
-      SRATMA_MAX_PER_TICK: 10
+      SRATMA_MAX_PER_TICK: 200
       SRATMA_INTERVAL_MS: 15000
+      SRATMA_BACKFILL_DEFAULT_DAYS: 90
+      SRATMA_BACKFILL_MAX_DAYS: 365
+      SRATMA_BACKFILL_MAX_PER_DAY: 5000
+      SRATMA_CONCURRENCY: 10
     ports:
       - "3000:3000"
     depends_on:

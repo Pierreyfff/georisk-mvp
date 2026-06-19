@@ -5,8 +5,14 @@ function buildWhere({ distrito, gravedad }) {
   const values = [];
 
   if (distrito) {
-    values.push(String(distrito).trim());
-    conditions.push(`ubigeo = $${values.length}`);
+    const val = String(distrito).trim();
+    if (val === "SRATMA") {
+      values.push(val);
+      conditions.push(`distrito = $${values.length}`);
+    } else {
+      values.push(val);
+      conditions.push(`ubigeo = $${values.length}`);
+    }
   }
 
   if (gravedad) {
@@ -24,6 +30,7 @@ async function findAll() {
       id, fecha, hora, distrito, ubigeo, tipo, gravedad,
       fallecidos, lesionados, fuente, external_id, raw,
       ingested_at, updated_at,
+      vehiculos, entidad, direccion, codigo_externo,
       ST_Y(ubicacion::geometry) AS lat,
       ST_X(ubicacion::geometry) AS lng
     FROM accidentes
@@ -81,24 +88,30 @@ async function insertOne(accidente) {
     fuente = null,
     external_id = null,
     raw = null,
+    vehiculos = null,
+    entidad = null,
+    direccion = null,
+    codigo_externo = null,
   } = accidente;
 
   const query = `
     INSERT INTO accidentes (
       fecha, hora, distrito, ubigeo, tipo, gravedad,
       ubicacion,
-      fallecidos, lesionados, fuente, external_id, raw
+      fallecidos, lesionados, fuente, external_id, raw,
+      vehiculos, entidad, direccion, codigo_externo
     )
     VALUES (
       $1, $2, $3, $4, $5, $6,
       ST_SetSRID(ST_MakePoint($7, $8), 4326)::geography,
-      $9, $10, $11, $12, $13
+      $9, $10, $11, $12, $13, $14, $15, $16, $17
     )
     ON CONFLICT ON CONSTRAINT accidentes_fuente_external_id_key DO NOTHING
     RETURNING
       id, fecha, hora, distrito, ubigeo, tipo, gravedad,
       fallecidos, lesionados, fuente, external_id, raw,
       ingested_at, updated_at,
+      vehiculos, entidad, direccion, codigo_externo,
       ST_Y(ubicacion::geometry) AS lat,
       ST_X(ubicacion::geometry) AS lng;
   `;
@@ -117,6 +130,10 @@ async function insertOne(accidente) {
     fuente,
     external_id,
     raw,
+    vehiculos,
+    entidad,
+    direccion,
+    codigo_externo,
   ];
 
   const { rows } = await pool.query(query, values);
@@ -131,6 +148,7 @@ async function findFiltered({ distrito, gravedad }) {
       id, fecha, hora, distrito, ubigeo, tipo, gravedad,
       fallecidos, lesionados, fuente, external_id, raw,
       ingested_at, updated_at,
+      vehiculos, entidad, direccion, codigo_externo,
       ST_Y(ubicacion::geometry) AS lat,
       ST_X(ubicacion::geometry) AS lng
     FROM accidentes
@@ -150,6 +168,7 @@ async function findById(id) {
       id, fecha, hora, distrito, ubigeo, tipo, gravedad,
       fallecidos, lesionados, fuente, external_id, raw,
       ingested_at, updated_at,
+      vehiculos, entidad, direccion, codigo_externo,
       ST_Y(ubicacion::geometry) AS lat,
       ST_X(ubicacion::geometry) AS lng
     FROM accidentes
@@ -166,6 +185,7 @@ async function findByFuenteExternalId(fuente, externalId) {
       id, fecha, hora, distrito, ubigeo, tipo, gravedad,
       fallecidos, lesionados, fuente, external_id, raw,
       ingested_at, updated_at,
+      vehiculos, entidad, direccion, codigo_externo,
       ST_Y(ubicacion::geometry) AS lat,
       ST_X(ubicacion::geometry) AS lng
     FROM accidentes

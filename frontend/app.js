@@ -1,33 +1,61 @@
-const API_BASE = `${location.origin}/api`;
+let API_BASE, map, markersLayer, boundaryLayer, boundaryCache, seenIds, allDistritos, currentFilters;
+let deptMap = {};
+let deptList = [];
 
-const map = L.map("map").setView([-12.08, -77.03], 12);
-L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-  maxZoom: 19,
-  attribution: "&copy; OpenStreetMap contributors",
-}).addTo(map);
-
-const markersLayer = L.layerGroup().addTo(map);
-
-let districtLayer = null;
-const districtCache = new Map();
-
-const seenIds = new Set();
-
-const currentFilters = {
-  distrito: null,
-  gravedad: null,
+const C = {
+  blue: "#3a7bd5",
+  purple: "#8a4fc9",
+  amber: "#d18a3a",
+  cyan: "#22b8c8",
+  green: "#2ecc71",
+  red: "#e74c3c",
+  yellow: "#f1c40f",
 };
 
-/* ❌ ELIMINADO: UBIGEO_TO_OSM */
+function initGlobals() {
+  API_BASE = `${location.origin}/api`;
+  map = L.map("map").setView([-12.08, -77.03], 6);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: "&copy; OpenStreetMap contributors",
+  }).addTo(map);
+  markersLayer = L.layerGroup().addTo(map);
+  boundaryLayer = null;
+  boundaryCache = new Map();
+  seenIds = new Set();
+  allDistritos = [];
+  deptMap = {};
+  deptList = [];
+  currentFilters = { distrito: null, gravedad: null, departamento: null, provincia: null };
+}
 
-/* =========================
-   UTILIDADES EXISTENTES
-   ========================= */
+function $(id) { return document.getElementById(id); }
+
+/* ===== Pin icon ===== */
+
+function pinSvg(color) {
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="36" viewBox="0 0 28 36">
+    <path d="M14 0C6.8 0 1 5.8 1 13c0 9.8 13 22 13 22s13-12.2 13-22C27 5.8 21.2 0 14 0z" fill="${color}" stroke="#fff" stroke-width="1.5"/>
+    <circle cx="14" cy="13" r="5" fill="#fff" opacity=".9"/>
+  </svg>`;
+}
+
+function pinIcon(color) {
+  return L.divIcon({
+    html: pinSvg(color),
+    className: "",
+    iconSize: [28, 36],
+    iconAnchor: [14, 36],
+    popupAnchor: [0, -38],
+  });
+}
+
+/* ===== helpers ===== */
 
 function gravedadColor(g) {
-  if (g === "Alta") return "#e74c3c";
-  if (g === "Media") return "#f1c40f";
-  return "#2ecc71";
+  if (g === "Alta") return C.red;
+  if (g === "Media") return C.yellow;
+  return C.green;
 }
 
 function normalizeAccident(acc) {
@@ -39,33 +67,26 @@ function normalizeAccident(acc) {
 }
 
 function makeMarker(acc) {
-  const color = gravedadColor(acc.gravedad);
+  const marker = L.marker([acc.lat, acc.lng], { icon: pinIcon(gravedadColor(acc.gravedad)) });
 
-  const marker = L.circleMarker([acc.lat, acc.lng], {
-    radius: 7,
-    color,
-    weight: 2,
-    fillColor: color,
-    fillOpacity: 0.65,
-  });
-
-  const popup = `
+  marker.bindPopup(`
     <b>Accidente #${acc.id}</b><br/>
     <b>Fecha:</b> ${acc.fecha}<br/>
     <b>Hora:</b> ${acc.hora}<br/>
     <b>Distrito:</b> ${acc.distrito}<br/>
+    <b>Provincia:</b> ${acc.raw?.provincia || "-"}<br/>
+    <b>Departamento:</b> ${acc.raw?.departamento || "-"}<br/>
     <b>Tipo:</b> ${acc.tipo}<br/>
-    <b>Gravedad:</b> ${acc.gravedad}
-  `;
-
-  marker.bindPopup(popup);
+    <b>Gravedad:</b> ${acc.gravedad}<br/>
+    <b>Vehículos:</b> ${acc.vehiculos ?? "?"}
+  `);
   return marker;
 }
 
 function renderData(data) {
   markersLayer.clearLayers();
   seenIds.clear();
-
+  if (!Array.isArray(data)) return;
   for (const a of data) {
     const acc = normalizeAccident(a);
     seenIds.add(acc.id);
@@ -73,226 +94,454 @@ function renderData(data) {
   }
 }
 
+/* ===== KPIs ===== */
+
+function computeKpis(accs) {
+  const total = accs.length;
+  const porGravedad = { Baja: 0, Media: 0, Alta: 0 };
+  let suma = 0;
+  for (const a of accs) {
+    const g = a.gravedad;
+    if (g === "Baja") { porGravedad.Baja++; suma += 1; }
+    else if (g === "Media") { porGravedad.Media++; suma += 2; }
+    else if (g === "Alta") { porGravedad.Alta++; suma += 3; }
+  }
+  const prom = total > 0 ? (suma / total).toFixed(1) : "0.0";
+  return { total, porGravedad, gravedadPromedio: prom };
+}
+
 function renderKpis(kpis) {
-  document.getElementById("kpiTotal").textContent = kpis.total;
-  document.getElementById("kpiBaja").textContent = kpis.porGravedad.Baja ?? 0;
-  document.getElementById("kpiMedia").textContent = kpis.porGravedad.Media ?? 0;
-  document.getElementById("kpiAlta").textContent = kpis.porGravedad.Alta ?? 0;
-  document.getElementById("kpiProm").textContent = kpis.gravedadPromedio;
-}
-
-function getUIFilters() {
-  const distritoVal = document.getElementById("distrito").value || null;
-  const gravedad = document.getElementById("gravedad").value || null;
-
-  const distrito = distritoVal === "SRATMA" ? null : distritoVal;
-
-  return { distrito, gravedad, distritoVal };
-}
-
-function getAccidentUbigeoOrDistrict(acc) {
-  if (acc.ubigeo) return String(acc.ubigeo).trim();
-  return acc.distrito != null ? String(acc.distrito).trim() : null;
+  if (!kpis) return;
+  const set = (id, val) => { const el = $(id); if (el) el.textContent = val ?? 0; };
+  set("kpiTotal", kpis.total);
+  set("kpiBaja", kpis.porGravedad?.Baja);
+  set("kpiMedia", kpis.porGravedad?.Media);
+  set("kpiAlta", kpis.porGravedad?.Alta);
+  set("kpiProm", kpis.gravedadPromedio);
 }
 
 function passesCurrentFilters(acc) {
-  if (currentFilters.gravedad && acc.gravedad !== currentFilters.gravedad)
-    return false;
-
-  if (currentFilters.distrito) {
-    if (currentFilters.distrito === "SRATMA") {
-      return String(acc.distrito).trim() === "SRATMA";
-    }
-
-    const value = getAccidentUbigeoOrDistrict(acc);
-    if (value !== String(currentFilters.distrito)) return false;
+  if (currentFilters.gravedad && acc.gravedad !== currentFilters.gravedad) return false;
+  if (currentFilters.distrito === "SRATMA") return String(acc.distrito).trim() === "SRATMA";
+  if (currentFilters.distrito && /^\d{6}$/.test(currentFilters.distrito)) {
+    const ubigeo = acc.ubigeo ? String(acc.ubigeo).trim() : null;
+    if (ubigeo !== currentFilters.distrito) return false;
   }
-
+  if (currentFilters.departamento && !currentFilters.distrito) {
+    const dep = acc.raw?.departamento || acc.departamento || "";
+    if (dep !== currentFilters.departamento) return false;
+  }
+  if (currentFilters.provincia && !currentFilters.distrito) {
+    const prov = acc.raw?.provincia || acc.provincia || "";
+    if (prov !== currentFilters.provincia) return false;
+  }
   return true;
 }
 
 function fitMapToVisibleMarkers() {
   const layers = markersLayer.getLayers();
   if (layers.length === 0) return;
-
-  const group = L.featureGroup(layers);
-  map.fitBounds(group.getBounds().pad(0.2));
+  map.fitBounds(L.featureGroup(layers).getBounds().pad(0.2));
 }
 
-function clearDistrictBoundary() {
-  if (districtLayer) {
-    map.removeLayer(districtLayer);
-    districtLayer = null;
-  }
+function clearBoundary() {
+  if (boundaryLayer) { map.removeLayer(boundaryLayer); boundaryLayer = null; }
 }
 
-/* =========================
-   🔥 REEMPLAZO COMPLETO
-   ========================= */
-async function drawSelectedDistrictBoundary() {
-  clearDistrictBoundary();
+/* ===== Boundary drawing (department / province / district) ===== */
 
-  if (!currentFilters.distrito) return;
+function boundaryStyle(level) {
+  const shared = { dashArray: null };
+  if (level === "departamento") return { ...shared, color: C.blue, weight: 4, fillColor: C.blue, fillOpacity: 0.04 };
+  if (level === "provincia") return { ...shared, color: C.purple, weight: 3, fillColor: C.purple, fillOpacity: 0.05 };
+  return { ...shared, color: C.amber, weight: 2, fillColor: C.amber, fillOpacity: 0.06 };
+}
 
-  const ubigeo = String(currentFilters.distrito).trim();
-  if (ubigeo === "SRATMA") return;
-  if (!/^\d{6}$/.test(ubigeo)) return;
+function cacheKey(level, dept, prov) {
+  return `${level}|${dept || ""}|${prov || ""}`;
+}
 
-  const cacheKey = `UBIGEO|${ubigeo}`;
+async function drawBoundary() {
+  clearBoundary();
 
-  if (districtCache.has(cacheKey)) {
-    const geo = districtCache.get(cacheKey);
+  const { distrito, departamento, provincia } = currentFilters;
 
-    districtLayer = L.geoJSON(geo, {
-      style: {
-        color: "#1f2d3d",
-        weight: 3,
-        dashArray: "6 6",
-        fillColor: "#3498db",
-        fillOpacity: 0.06,
-      },
-    }).addTo(map);
-
-    const bounds = districtLayer.getBounds();
-    if (bounds.isValid()) map.fitBounds(bounds.pad(0.1));
-    return;
-  }
-
-  let feature;
-
-  try {
-    const resp = await fetch(`${API_BASE}/distritos/${ubigeo}/geojson`);
-    feature = await resp.json();
-
-    if (!resp.ok) {
-      throw new Error(feature?.error || "No se pudo cargar geojson");
+  if (distrito && /^\d{6}$/.test(distrito)) {
+    const key = cacheKey("distrito", "", distrito);
+    if (boundaryCache.has(key)) {
+      const geo = boundaryCache.get(key);
+      boundaryLayer = L.geoJSON(geo, boundaryStyle("distrito")).addTo(map);
+      const b = boundaryLayer.getBounds();
+      if (b.isValid()) map.fitBounds(b.pad(0.1));
+      return;
     }
-  } catch (e) {
-    console.error("No se pudo obtener límite del distrito:", e.message);
+    try {
+      const resp = await fetch(`${API_BASE}/distritos/${distrito}/geojson`);
+      const feature = await resp.json();
+      if (!resp.ok) throw new Error(feature?.error || "No se pudo cargar");
+      boundaryCache.set(key, feature);
+      boundaryLayer = L.geoJSON(feature, boundaryStyle("distrito")).addTo(map);
+      const b = boundaryLayer.getBounds();
+      if (b.isValid()) map.fitBounds(b.pad(0.1));
+    } catch (e) {
+      console.error("Error cargando límite del distrito:", e.message);
+    }
     return;
   }
 
-  districtCache.set(cacheKey, feature);
-
-  districtLayer = L.geoJSON(feature, {
-    style: {
-      color: "#1f2d3d",
-      weight: 3,
-      dashArray: "6 6",
-      fillColor: "#3498db",
-      fillOpacity: 0.06,
-    },
-  }).addTo(map);
-
-  const bounds = districtLayer.getBounds();
-  if (bounds.isValid()) map.fitBounds(bounds.pad(0.1));
-}
-
-/* =========================
-   CARGA PRINCIPAL
-   ========================= */
-async function cargar() {
-  const { distrito, gravedad, distritoVal } = getUIFilters();
-
-  currentFilters.distrito = distritoVal;
-  currentFilters.gravedad = gravedad;
-
-  const params = new URLSearchParams();
-  if (distrito) params.set("distrito", distrito);
-  if (gravedad) params.set("gravedad", gravedad);
-
-  const url = `${API_BASE}/accidentes/filtrados?${params.toString()}`;
-  const resp = await fetch(url);
-  const json = await resp.json();
-
-  renderData(json.data);
-  renderKpis(json.kpis);
-
-  await drawSelectedDistrictBoundary();
-
-  if (!currentFilters.distrito) {
-    fitMapToVisibleMarkers();
+  if (departamento) {
+    const key = cacheKey(provincia ? "provincia" : "departamento", departamento, provincia);
+    if (boundaryCache.has(key)) {
+      const geo = boundaryCache.get(key);
+      const level = provincia ? "provincia" : "departamento";
+      boundaryLayer = L.geoJSON(geo, boundaryStyle(level)).addTo(map);
+      const b = boundaryLayer.getBounds();
+      if (b.isValid()) map.fitBounds(b.pad(0.1));
+      return;
+    }
+    try {
+      const params = new URLSearchParams({ departamento });
+      if (provincia) params.set("provincia", provincia);
+      const resp = await fetch(`${API_BASE}/distritos/geometria/agregada?${params}`);
+      const feature = await resp.json();
+      if (!resp.ok) throw new Error(feature?.error || "No se pudo cargar");
+      boundaryCache.set(key, feature);
+      const level = provincia ? "provincia" : "departamento";
+      boundaryLayer = L.geoJSON(feature, boundaryStyle(level)).addTo(map);
+      const b = boundaryLayer.getBounds();
+      if (b.isValid()) map.fitBounds(b.pad(0.1));
+    } catch (e) {
+      console.error("Error cargando límite:", e.message);
+    }
+    return;
   }
 }
 
-/* =========================
-   DISTRIKTOS SELECT
-   ========================= */
-async function cargarDistritosSelect() {
-  const select = document.getElementById("distrito");
-  if (!select) return;
+/* ===== carga principal ===== */
 
-  select.innerHTML = "";
+async function cargar() {
+  try {
+    const gravedad = ($("gravedad") || {}).value || null;
+    const dept = $("departamentoSelect").value;
+    const prov = $("provinciaSelect").value;
+    const dist = $("distritoSelect").value;
 
-  const optAll = document.createElement("option");
-  optAll.value = "";
-  optAll.textContent = "(Todos)";
-  select.appendChild(optAll);
+    currentFilters = { gravedad, departamento: dept, provincia: prov, distrito: dist || null };
 
-  const optSratma = document.createElement("option");
-  optSratma.value = "SRATMA";
-  optSratma.textContent = "SRATMA (Perú)";
-  select.appendChild(optSratma);
+    const params = new URLSearchParams();
+    if (dist) params.set("distrito", dist);
+    if (gravedad) params.set("gravedad", gravedad);
 
-  let json;
+    const resp = await fetch(`${API_BASE}/accidentes/filtrados?${params}`);
+    const json = await resp.json();
+    if (!resp.ok) throw new Error(json?.error || `HTTP ${resp.status}`);
+
+    let data = json.data || [];
+
+    if (dept && !dist) {
+      data = data.filter(a => {
+        const dep = a.raw?.departamento || a.departamento || "";
+        return dep === dept;
+      });
+    }
+    if (prov && !dist) {
+      data = data.filter(a => {
+        const pro = a.raw?.provincia || a.provincia || "";
+        return pro === prov;
+      });
+    }
+
+    renderData(data);
+    renderKpis(computeKpis(data));
+    await drawBoundary();
+    if (!dist) fitMapToVisibleMarkers();
+  } catch (e) {
+    console.error("Error al cargar accidentes:", e.message);
+  }
+}
+
+/* ===== jerarquía ===== */
+
+async function cargarDistritos() {
   try {
     const resp = await fetch(`${API_BASE}/distritos?limit=2000`);
-    json = await resp.json();
+    const json = await resp.json();
+    if (!resp.ok) throw new Error(json?.error || `HTTP ${resp.status}`);
 
-    if (!resp.ok) {
-      throw new Error(json?.error || `HTTP ${resp.status}`);
+    const list = Array.isArray(json.data) ? json.data : [];
+    for (const d of list) {
+      allDistritos.push({
+        ubigeo: d.ubigeo,
+        departamento: d.departamento,
+        provincia: d.provincia,
+        distrito: d.distrito,
+        label: `${d.departamento} / ${d.provincia} / ${d.distrito}`,
+      });
     }
   } catch (e) {
     console.error("Error cargando distritos:", e.message);
+  }
+}
+
+function buildDeptMap() {
+  deptMap = {};
+  deptList = [];
+  for (const d of allDistritos) {
+    if (!deptMap[d.departamento]) {
+      deptMap[d.departamento] = {};
+      deptList.push(d.departamento);
+    }
+    if (!deptMap[d.departamento][d.provincia]) {
+      deptMap[d.departamento][d.provincia] = [];
+    }
+    deptMap[d.departamento][d.provincia].push({ ubigeo: d.ubigeo, distrito: d.distrito });
+  }
+  deptList.sort();
+}
+
+function populateDepartamentos() {
+  const sel = $("departamentoSelect");
+  sel.innerHTML = '<option value="">(Todos los departamentos)</option>';
+  for (const d of deptList) {
+    const opt = document.createElement("option");
+    opt.value = d;
+    opt.textContent = d;
+    sel.appendChild(opt);
+  }
+}
+
+function populateProvincias(dept) {
+  const sel = $("provinciaSelect");
+  sel.innerHTML = '<option value="">(Todas las provincias)</option>';
+  if (!dept || !deptMap[dept]) return;
+  const provs = Object.keys(deptMap[dept]).sort();
+  for (const p of provs) {
+    const opt = document.createElement("option");
+    opt.value = p;
+    opt.textContent = p;
+    sel.appendChild(opt);
+  }
+}
+
+function populateDistritos(dept, prov) {
+  const sel = $("distritoSelect");
+  sel.innerHTML = '<option value="">(Todos los distritos)</option>';
+  if (dept && prov && deptMap[dept] && deptMap[dept][prov]) {
+    for (const d of deptMap[dept][prov]) {
+      const opt = document.createElement("option");
+      opt.value = d.ubigeo;
+      opt.textContent = d.distrito;
+      sel.appendChild(opt);
+    }
+  }
+  const sr = document.createElement("option");
+  sr.value = "SRATMA";
+  sr.textContent = "SRATMA (Perú)";
+  sel.appendChild(sr);
+}
+
+/* ===== autocomplete ===== */
+
+function showSuggestions(query) {
+  const el = $("suggestions");
+  el.innerHTML = "";
+  if (!query || query.length < 2) { el.classList.remove("open"); return; }
+  const q = query.toLowerCase().trim();
+
+  const seenKeys = new Set();
+  const results = [];
+
+  for (const d of allDistritos) {
+    const deptLow = d.departamento.toLowerCase();
+    const provLow = d.provincia.toLowerCase();
+    const distLow = d.distrito.toLowerCase();
+
+    let matchType = null;
+    let matchIdx = -1;
+
+    if (deptLow.startsWith(q)) {
+      matchType = "Departamento";
+      matchIdx = d.label.toLowerCase().indexOf(deptLow);
+    } else if (provLow.startsWith(q)) {
+      matchType = "Provincia";
+      matchIdx = d.label.toLowerCase().indexOf(provLow);
+    } else if (distLow.startsWith(q)) {
+      matchType = "Distrito";
+      matchIdx = d.label.toLowerCase().indexOf(distLow);
+    } else {
+      const idx = d.label.toLowerCase().indexOf(q);
+      if (idx >= 0) {
+        matchType = null;
+        matchIdx = idx;
+      }
+    }
+
+    if (matchIdx === -1) continue;
+
+    const key = d.ubigeo + "|" + matchIdx;
+    if (seenKeys.has(key)) continue;
+    seenKeys.add(key);
+
+    results.push({
+      ...d,
+      score: matchIdx,
+      matchType,
+    });
+  }
+
+  results.sort((a, b) => a.score - b.score);
+  const top = results.slice(0, 20);
+  if (top.length === 0) { el.classList.remove("open"); return; }
+
+  for (const m of top) {
+    const div = document.createElement("div");
+    div.className = "s-item";
+    const label = m.label;
+    const idx = label.toLowerCase().indexOf(q);
+    const seg = q.length;
+    let html = "";
+    if (idx >= 0) {
+      html =
+        label.slice(0, idx) +
+        '<span class="match">' + label.slice(idx, idx + seg) + '</span>' +
+        label.slice(idx + seg);
+    } else {
+      html = label;
+    }
+    if (m.matchType) {
+      html += ' <span class="hint">' + m.matchType + "</span>";
+    }
+    div.innerHTML = html;
+    div.addEventListener("click", () => {
+      $("departamentoSelect").value = m.departamento;
+      populateProvincias(m.departamento);
+      $("provinciaSelect").value = m.provincia;
+      populateDistritos(m.departamento, m.provincia);
+      $("distritoSelect").value = m.ubigeo;
+      $("distritoSearch").value = m.distrito;
+      $("suggestions").classList.remove("open");
+      cargar();
+    });
+    el.appendChild(div);
+  }
+  el.classList.add("open");
+}
+
+/* ===== drag ===== */
+
+function setupDrag() {
+  const controls = $("controls");
+  const handle = $("dragHandle");
+  let dragging = false, startX, startY, startLeft, startTop;
+
+  handle.addEventListener("mousedown", (e) => {
+    dragging = true;
+    startLeft = controls.offsetLeft;
+    startTop = controls.offsetTop;
+    startX = e.clientX;
+    startY = e.clientY;
+    controls.style.right = "auto";
+    e.preventDefault();
+  });
+
+  document.addEventListener("mousemove", (e) => {
+    if (!dragging) return;
+    controls.style.left = (startLeft + e.clientX - startX) + "px";
+    controls.style.top = (startTop + e.clientY - startY) + "px";
+  });
+
+  document.addEventListener("mouseup", () => { dragging = false; });
+}
+
+/* ===== setup ===== */
+
+function setup() {
+  initGlobals();
+  setupDrag();
+
+  const searchInput = $("distritoSearch");
+  const deptSel = $("departamentoSelect");
+  const provSel = $("provinciaSelect");
+  const distritoSel = $("distritoSelect");
+  const gravedadSel = $("gravedad");
+  const btnCargar = $("btnCargar");
+
+  if (!deptSel || !provSel || !distritoSel || !gravedadSel || !btnCargar || !searchInput) {
+    console.error("GeoRisk: elementos del DOM faltantes");
     return;
   }
 
-  const list = Array.isArray(json.data) ? json.data : [];
-  for (const d of list) {
-    const opt = document.createElement("option");
-    opt.value = d.ubigeo;
-    opt.textContent = `${d.departamento} / ${d.provincia} / ${d.distrito}`;
-    select.appendChild(opt);
+  searchInput.addEventListener("input", () => showSuggestions(searchInput.value));
+  searchInput.addEventListener("blur", () => {
+    setTimeout(() => $("suggestions").classList.remove("open"), 200);
+  });
+  searchInput.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
+    const first = $("suggestions").querySelector(".s-item");
+    if (first) { first.click(); return; }
+    cargar();
+  });
+
+  deptSel.addEventListener("change", () => {
+    const dept = deptSel.value;
+    populateProvincias(dept);
+    populateDistritos(dept, null);
+    provSel.value = "";
+    distritoSel.value = "";
+    cargar();
+  });
+
+  provSel.addEventListener("change", () => {
+    const dept = deptSel.value;
+    const prov = provSel.value;
+    populateDistritos(dept, prov || null);
+    distritoSel.value = "";
+    cargar();
+  });
+
+  distritoSel.addEventListener("change", cargar);
+  gravedadSel.addEventListener("change", cargar);
+  btnCargar.addEventListener("click", cargar);
+
+  (async function init() {
+    await cargarDistritos();
+    buildDeptMap();
+    populateDepartamentos();
+    populateProvincias("");
+    populateDistritos("", "");
+    await cargar();
+  })();
+
+  /* ===== SSE ===== */
+
+  const evtSource = new EventSource(`${API_BASE}/stream/accidentes`);
+
+  evtSource.addEventListener("accidente_creado", (e) => addLiveAccident(JSON.parse(e.data)));
+  evtSource.addEventListener("accidente_simulado", (e) => addLiveAccident(JSON.parse(e.data)));
+  evtSource.addEventListener("accidente_ingestado", (e) => addLiveAccident(JSON.parse(e.data)));
+
+  function inc(elId) {
+    const el = $(elId);
+    if (el) el.textContent = String(Number(el.textContent || "0") + 1);
+  }
+
+  function addLiveAccident(acc) {
+    const normalized = normalizeAccident(acc);
+    if (seenIds.has(normalized.id)) return;
+    if (!passesCurrentFilters(normalized)) return;
+
+    seenIds.add(normalized.id);
+    markersLayer.addLayer(makeMarker(normalized));
+
+    inc("kpiTotal");
+    if (normalized.gravedad === "Baja") inc("kpiBaja");
+    if (normalized.gravedad === "Media") inc("kpiMedia");
+    if (normalized.gravedad === "Alta") inc("kpiAlta");
   }
 }
 
-/* ========================= */
-
-document.getElementById("btnCargar").addEventListener("click", cargar);
-
-/* 🚀 INIT */
-cargarDistritosSelect().then(cargar);
-
-const evtSource = new EventSource(`${API_BASE}/stream/accidentes`);
-
-evtSource.addEventListener("accidente_creado", (e) => {
-  addLiveAccident(JSON.parse(e.data));
-});
-
-evtSource.addEventListener("accidente_simulado", (e) => {
-  addLiveAccident(JSON.parse(e.data));
-});
-
-evtSource.addEventListener("accidente_ingestado", (e) => {
-  addLiveAccident(JSON.parse(e.data));
-});
-
-function inc(elId) {
-  const el = document.getElementById(elId);
-  el.textContent = String(Number(el.textContent || "0") + 1);
-}
-
-function addLiveAccident(acc) {
-  const normalized = normalizeAccident(acc);
-
-  if (seenIds.has(normalized.id)) return;
-  if (!passesCurrentFilters(normalized)) return;
-
-  seenIds.add(normalized.id);
-  markersLayer.addLayer(makeMarker(normalized));
-
-  inc("kpiTotal");
-  if (normalized.gravedad === "Baja") inc("kpiBaja");
-  if (normalized.gravedad === "Media") inc("kpiMedia");
-  if (normalized.gravedad === "Alta") inc("kpiAlta");
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", setup);
+} else {
+  setup();
 }
