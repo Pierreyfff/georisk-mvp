@@ -223,12 +223,3 @@ Registro de cada ejecución del motor de ingesta (backfill/tick). Estadísticas:
 Ver `docker-compose.yml` para la lista completa de variables de configuración de ingesta.
 
 ---
-
-## Notas Técnicas
-
-- **Sin tests automatizados:** El proyecto no cuenta con suite de pruebas.
-- **Sin TypeScript:** Backend en CommonJS, frontend en ES Modules vanilla.
-- **Idioma:** Código y documentación en español.
-- **EventBus:** Implementación simple en memoria con `Set<callback>`. No apto para multi-instancia.
-- **Concurrencia:** `asyncPool` custom para limitar llamadas API concurrentes.
-- **Seguridad:** Las credenciales de DB están en texto plano en `docker-compose.yml` (solo para desarrollo local). En producción, usar variables de entorno de Render.
