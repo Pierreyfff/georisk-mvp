@@ -55,10 +55,10 @@ app.get("/ingest-status", async (req, res) => {
 });
 
 /* ===== routes ===== */
-app.use("/accidentes", accidentesRouter);
-app.use("/stream", streamRouter);
-app.use("/distritos", distritosRouter);
-app.use("/ingest-runs", ingestRunsRouter);
+app.use("/api/accidentes", accidentesRouter);
+app.use("/api/stream", streamRouter);
+app.use("/api/distritos", distritosRouter);
+app.use("/api/ingest-runs", ingestRunsRouter);
 
 /* ===== error handler ===== */
 app.use((err, req, res, next) => {
