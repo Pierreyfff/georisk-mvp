@@ -74,8 +74,34 @@
       color: var(--text-muted);
       font-size: 14px;
       letter-spacing: 3px;
+      position: relative;
     }
     .drag-handle:active { cursor: grabbing; }
+
+    .collapse-btn {
+      display: none;
+      position: absolute;
+      right: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text-secondary);
+      font-size: 16px;
+      width: 28px;
+      height: 28px;
+      cursor: pointer;
+      font-family: inherit;
+      line-height: 1;
+      transition: background .15s, color .15s;
+    }
+    .collapse-btn:hover { background: rgba(255,255,255,0.06); color: var(--gold); }
+    .collapse-btn:active { transform: translateY(-50%) scale(.94); }
+
+    #filterCard.collapsed .drag-handle { margin-bottom: 0; border-bottom: none; padding-bottom: 0; }
+    #filterCard.collapsed .filter-group,
+    #filterCard.collapsed .action-row { display: none; }
 
     .filter-group {
       display: flex;
@@ -434,17 +460,19 @@
     }
 
     @media (max-width: 640px) {
-      #controls { top: 10px; left: 10px; right: 10px; width: auto; max-width: none; transform: none; }
+      #controls { top: 52px; left: 10px; width: 280px; max-width: calc(100vw - 20px); transform: none; right: auto; }
       .kpi-wrap { bottom: 12px; gap: 4px; flex-wrap: wrap; justify-content: center; }
       .kpi-card { padding: 6px 10px; min-width: 70px; }
       .kpi-card .value { font-size: 13px; }
       .kpi-card .label { font-size: 9px; }
       .kpi-card .dot { width: 6px; height: 6px; }
-      .back-btn { top: 10px; left: 46px; width: 32px; height: 32px; }
-      .back-btn svg { width: 16px; height: 16px; }
-      .theme-toggle { top: 10px; right: 10px; width: 32px; height: 32px; }
-      .theme-toggle svg { width: 16px; height: 16px; }
-      .live-indicator { top: 10px; right: 48px; padding: 4px 8px; font-size: 9px; }
+      .back-btn { top: 10px; left: 10px; width: 36px; height: 36px; }
+      .back-btn svg { width: 18px; height: 18px; }
+      .theme-toggle { top: 10px; right: 10px; width: 36px; height: 36px; }
+      .theme-toggle svg { width: 18px; height: 18px; }
+      .live-indicator { top: 10px; right: 52px; padding: 4px 8px; font-size: 9px; }
+      .collapse-btn { display: flex; align-items: center; justify-content: center; }
+      #filterCard.collapsed { width: 56px; }
     }
   </style>
 </head>
@@ -476,7 +504,10 @@
 
   <div id="controls">
     <div class="ctrl-card" id="filterCard">
-      <div class="drag-handle" id="dragHandle">&#8942;&#8942;&#8942;</div>
+      <div class="drag-handle" id="dragHandle">
+        <span class="drag-dots">&#8942;&#8942;&#8942;</span>
+        <button class="collapse-btn" id="collapseBtn" type="button" aria-label="Colapsar">−</button>
+      </div>
 
       <div class="filter-group suggestions-wrap">
         <label>
@@ -598,6 +629,7 @@
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="./config.js"></script>
   <script type="module" src="./app.js"></script>
 </body>
 </html>

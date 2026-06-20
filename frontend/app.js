@@ -497,24 +497,31 @@ function setupDrag() {
     controls.style.transform = "none";
   }
 
-  handle.addEventListener("mousedown", (e) => {
+  function dragStart(clientX, clientY) {
     normalisePosition();
     dragging = true;
     startLeft = controls.offsetLeft;
     startTop = controls.offsetTop;
-    startX = e.clientX;
-    startY = e.clientY;
+    startX = clientX;
+    startY = clientY;
     controls.style.right = "auto";
-    e.preventDefault();
-  });
+  }
 
-  document.addEventListener("mousemove", (e) => {
+  function dragMove(clientX, clientY) {
     if (!dragging) return;
-    controls.style.left = (startLeft + e.clientX - startX) + "px";
-    controls.style.top = (startTop + e.clientY - startY) + "px";
-  });
+    controls.style.left = (startLeft + clientX - startX) + "px";
+    controls.style.top = (startTop + clientY - startY) + "px";
+  }
 
-  document.addEventListener("mouseup", () => { dragging = false; });
+  function dragEnd() { dragging = false; }
+
+  handle.addEventListener("mousedown", (e) => { dragStart(e.clientX, e.clientY); e.preventDefault(); });
+  document.addEventListener("mousemove", (e) => dragMove(e.clientX, e.clientY));
+  document.addEventListener("mouseup", dragEnd);
+
+  handle.addEventListener("touchstart", (e) => { dragStart(e.touches[0].clientX, e.touches[0].clientY); }, { passive: true });
+  document.addEventListener("touchmove", (e) => dragMove(e.touches[0].clientX, e.touches[0].clientY), { passive: true });
+  document.addEventListener("touchend", dragEnd);
 }
 
 function setupThemeToggle() {
@@ -541,6 +548,17 @@ function setupThemeToggle() {
     applyTileTheme(theme);
     saveTheme(theme);
     reflectIcon(theme);
+  });
+}
+
+function setupCollapse() {
+  const btn = $("collapseBtn");
+  const card = $("filterCard");
+  if (!btn || !card) return;
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const collapsed = card.classList.toggle("collapsed");
+    btn.textContent = collapsed ? "+" : "−";
   });
 }
 
@@ -590,6 +608,7 @@ function setup() {
   initGlobals();
   setupDrag();
   setupThemeToggle();
+  setupCollapse();
   setupExport();
   setupAuditModal();
 
@@ -680,9 +699,12 @@ function setup() {
     await cargar();
   })();
 
-  /* ===== SSE ===== */
+  /* ===== SSE + polling fallback ===== */
 
-  const evtSource = new EventSource(`${API_BASE}/stream/accidentes`);
+  const SSE_BASE = window.GEORISK_CONFIG?.SSE_BASE || API_BASE;
+  let sseFailed = false;
+
+  const evtSource = new EventSource(`${SSE_BASE}/stream/accidentes`);
 
   evtSource.addEventListener("open", () => {
     const dot = document.querySelector("#liveIndicator .live-dot");
@@ -691,6 +713,10 @@ function setup() {
   evtSource.addEventListener("error", () => {
     const dot = document.querySelector("#liveIndicator .live-dot");
     if (dot) dot.classList.add("is-offline");
+    if (!sseFailed) {
+      sseFailed = true;
+      setInterval(cargar, 30000);
+    }
   });
 
   evtSource.addEventListener("accidente_creado", (e) => addLiveAccident(JSON.parse(e.data)));
