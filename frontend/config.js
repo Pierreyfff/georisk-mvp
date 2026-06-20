@@ -1,3 +1,3 @@
 window.GEORISK_CONFIG = {
-  SSE_BASE: "https://georisk-mvp.onrender.com",
+  SSE_BASE: "https://georisk-mvp.onrender.com/api",
 };
