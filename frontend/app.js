@@ -701,7 +701,8 @@ function setup() {
 
   /* ===== SSE + polling fallback ===== */
 
-  const SSE_BASE = window.GEORISK_CONFIG?.SSE_BASE || API_BASE;
+  const isLocal = location.hostname === "localhost" || location.hostname === "127.0.0.1";
+  const SSE_BASE = isLocal ? API_BASE : (window.GEORISK_CONFIG?.SSE_BASE || API_BASE);
   let sseFailed = false;
 
   const evtSource = new EventSource(`${SSE_BASE}/stream/accidentes`);
