@@ -12,13 +12,36 @@ const C = {
   yellow: "#f1c40f",
 };
 
+const TILE_DARK = {
+  url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+  attribution: '&copy; OpenStreetMap contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+};
+const TILE_LIGHT = {
+  url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+  attribution: "&copy; OpenStreetMap contributors",
+};
+let currentTileLayer = null;
+
+function getSavedTheme() {
+  try { return localStorage.getItem("georisk_map_theme") || "dark"; }
+  catch { return "dark"; }
+}
+
+function saveTheme(theme) {
+  try { localStorage.setItem("georisk_map_theme", theme); } catch {}
+}
+
+function applyTileTheme(theme) {
+  const cfg = theme === "light" ? TILE_LIGHT : TILE_DARK;
+  if (currentTileLayer) map.removeLayer(currentTileLayer);
+  currentTileLayer = L.tileLayer(cfg.url, { maxZoom: 19, attribution: cfg.attribution });
+  currentTileLayer.addTo(map);
+}
+
 function initGlobals() {
   API_BASE = `${location.origin}/api`;
   map = L.map("map").setView([-12.08, -77.03], 6);
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 19,
-    attribution: "&copy; OpenStreetMap contributors",
-  }).addTo(map);
+  applyTileTheme(getSavedTheme());
   markersLayer = L.layerGroup().addTo(map);
   boundaryLayer = null;
   boundaryCache = new Map();
@@ -30,6 +53,7 @@ function initGlobals() {
 }
 
 function $(id) { return document.getElementById(id); }
+window.$ = $;
 
 /* ===== Pin icon ===== */
 
@@ -74,11 +98,12 @@ function makeMarker(acc) {
     <b>Fecha:</b> ${acc.fecha}<br/>
     <b>Hora:</b> ${acc.hora}<br/>
     <b>Distrito:</b> ${acc.distrito}<br/>
-    <b>Provincia:</b> ${acc.raw?.provincia || "-"}<br/>
-    <b>Departamento:</b> ${acc.raw?.departamento || "-"}<br/>
+    <b>Provincia:</b> ${acc.provincia || acc.raw?.provincia || "-"}<br/>
+    <b>Departamento:</b> ${acc.departamento || acc.raw?.departamento || "-"}<br/>
     <b>Tipo:</b> ${acc.tipo}<br/>
     <b>Gravedad:</b> ${acc.gravedad}<br/>
-    <b>Vehículos:</b> ${acc.vehiculos ?? "?"}
+    <b>Vehículos:</b> ${acc.vehiculos ?? "?"}<br/>
+    <button onclick="openAuditModal(${acc.id})" style="background:none;border:1px solid var(--border);color:#c79a5a;font-size:12px;padding:4px 10px;border-radius:6px;cursor:pointer;margin-top:4px;font-family:inherit;">Ver auditor&iacute;a</button>
   `);
   return marker;
 }
@@ -128,11 +153,11 @@ function passesCurrentFilters(acc) {
     if (ubigeo !== currentFilters.distrito) return false;
   }
   if (currentFilters.departamento && !currentFilters.distrito) {
-    const dep = acc.raw?.departamento || acc.departamento || "";
+    const dep = acc.departamento || acc.raw?.departamento || "";
     if (dep !== currentFilters.departamento) return false;
   }
   if (currentFilters.provincia && !currentFilters.distrito) {
-    const prov = acc.raw?.provincia || acc.provincia || "";
+    const prov = acc.provincia || acc.raw?.provincia || "";
     if (prov !== currentFilters.provincia) return false;
   }
   return true;
@@ -217,6 +242,18 @@ async function drawBoundary() {
   }
 }
 
+function showMapStatus(text, isError) {
+  const el = $("mapStatus");
+  if (!el) return;
+  el.textContent = text;
+  el.classList.toggle("is-error", !!isError);
+  el.style.display = "block";
+}
+function hideMapStatus() {
+  const el = $("mapStatus");
+  if (el) el.style.display = "none";
+}
+
 /* ===== carga principal ===== */
 
 async function cargar() {
@@ -231,6 +268,7 @@ async function cargar() {
     const params = new URLSearchParams();
     if (dist) params.set("distrito", dist);
     if (gravedad) params.set("gravedad", gravedad);
+    params.set("verified", "true");
 
     const resp = await fetch(`${API_BASE}/accidentes/filtrados?${params}`);
     const json = await resp.json();
@@ -246,17 +284,23 @@ async function cargar() {
     }
     if (prov && !dist) {
       data = data.filter(a => {
-        const pro = a.raw?.provincia || a.provincia || "";
+        const pro = a.provincia || a.raw?.provincia || "";
         return pro === prov;
       });
     }
 
     renderData(data);
+    if (data.length === 0) {
+      showMapStatus("No se encontraron accidentes con estos filtros.");
+    } else {
+      hideMapStatus();
+    }
     renderKpis(computeKpis(data));
     await drawBoundary();
     if (!dist) fitMapToVisibleMarkers();
   } catch (e) {
     console.error("Error al cargar accidentes:", e.message);
+    showMapStatus("No se pudieron cargar los accidentes. Intenta de nuevo.", true);
   }
 }
 
@@ -399,19 +443,27 @@ function showSuggestions(query) {
     const label = m.label;
     const idx = label.toLowerCase().indexOf(q);
     const seg = q.length;
-    let html = "";
+
+    const textSpan = document.createElement("span");
     if (idx >= 0) {
-      html =
-        label.slice(0, idx) +
-        '<span class="match">' + label.slice(idx, idx + seg) + '</span>' +
-        label.slice(idx + seg);
+      const before = document.createTextNode(label.slice(0, idx));
+      const match = document.createElement("span");
+      match.className = "match";
+      match.textContent = label.slice(idx, idx + seg);
+      const after = document.createTextNode(label.slice(idx + seg));
+      textSpan.appendChild(before);
+      textSpan.appendChild(match);
+      textSpan.appendChild(after);
     } else {
-      html = label;
+      textSpan.textContent = label;
     }
+    div.appendChild(textSpan);
     if (m.matchType) {
-      html += ' <span class="hint">' + m.matchType + "</span>";
+      const hint = document.createElement("span");
+      hint.className = "hint";
+      hint.textContent = m.matchType;
+      div.appendChild(hint);
     }
-    div.innerHTML = html;
     div.addEventListener("click", () => {
       $("departamentoSelect").value = m.departamento;
       populateProvincias(m.departamento);
@@ -433,8 +485,20 @@ function setupDrag() {
   const controls = $("controls");
   const handle = $("dragHandle");
   let dragging = false, startX, startY, startLeft, startTop;
+  let normalised = false;
+
+  function normalisePosition() {
+    if (normalised) return;
+    normalised = true;
+    const ctrlRect = controls.getBoundingClientRect();
+    const mapRect = map.getContainer().getBoundingClientRect();
+    controls.style.left = (ctrlRect.left - mapRect.left) + "px";
+    controls.style.top = (ctrlRect.top - mapRect.top) + "px";
+    controls.style.transform = "none";
+  }
 
   handle.addEventListener("mousedown", (e) => {
+    normalisePosition();
     dragging = true;
     startLeft = controls.offsetLeft;
     startTop = controls.offsetTop;
@@ -453,11 +517,81 @@ function setupDrag() {
   document.addEventListener("mouseup", () => { dragging = false; });
 }
 
+function setupThemeToggle() {
+  const btn = $("themeToggle");
+  const iconSun = $("iconSun");
+  const iconMoon = $("iconMoon");
+  if (!btn || !iconSun || !iconMoon) return;
+
+  function reflectIcon(theme) {
+    if (theme === "light") {
+      iconSun.style.display = "none";
+      iconMoon.style.display = "block";
+    } else {
+      iconSun.style.display = "block";
+      iconMoon.style.display = "none";
+    }
+  }
+
+  let theme = getSavedTheme();
+  reflectIcon(theme);
+
+  btn.addEventListener("click", () => {
+    theme = theme === "light" ? "dark" : "light";
+    applyTileTheme(theme);
+    saveTheme(theme);
+    reflectIcon(theme);
+  });
+}
+
+function setupExport() {
+  const btn = $("btnExportar");
+  if (!btn) return;
+  btn.addEventListener("click", () => {
+    const params = new URLSearchParams();
+    if (currentFilters.distrito) params.set("distrito", currentFilters.distrito);
+    if (currentFilters.gravedad) params.set("gravedad", currentFilters.gravedad);
+    window.open(`${API_BASE}/accidentes/export?${params}`, "_blank");
+  });
+}
+
+/* ===== auditoría modal ===== */
+
+async function openAuditModal(id) {
+  const overlay = $("auditModal");
+  const content = $("auditContent");
+  if (!overlay || !content) return;
+  content.textContent = "Cargando...";
+  overlay.classList.add("open");
+  try {
+    const resp = await fetch(`${API_BASE}/accidentes/${id}/audit`);
+    const json = await resp.json();
+    content.textContent = JSON.stringify(json, null, 2);
+  } catch (e) {
+    content.textContent = "Error al cargar la auditoría.";
+  }
+}
+
+window.openAuditModal = openAuditModal;
+
+function setupAuditModal() {
+  const overlay = $("auditModal");
+  const close = $("auditClose");
+  if (!overlay || !close) return;
+  close.addEventListener("click", () => overlay.classList.remove("open"));
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay) overlay.classList.remove("open");
+  });
+}
+
 /* ===== setup ===== */
 
 function setup() {
   initGlobals();
   setupDrag();
+  setupThemeToggle();
+  setupExport();
+  setupAuditModal();
 
   const searchInput = $("distritoSearch");
   const deptSel = $("departamentoSelect");
@@ -477,9 +611,43 @@ function setup() {
   });
   searchInput.addEventListener("keydown", (e) => {
     if (e.key !== "Enter") return;
-    const first = $("suggestions").querySelector(".s-item");
-    if (first) { first.click(); return; }
-    cargar();
+    const q = searchInput.value.trim().toLowerCase();
+    if (!q || q.length < 2) { cargar(); return; }
+    let match = null;
+    for (const d of allDistritos) {
+      const deptLow = d.departamento.toLowerCase();
+      const provLow = d.provincia.toLowerCase();
+      const distLow = d.distrito.toLowerCase();
+      if (deptLow === q) { match = { level: "departamento", value: d.departamento, ubigeo: null }; break; }
+      if (!match && provLow === q) { match = { level: "provincia", value: d.provincia, ubigeo: null, dept: d.departamento }; }
+      if (!match && distLow === q) { match = { level: "distrito", value: d.ubigeo, ubigeo: d.ubigeo, dept: d.departamento, prov: d.provincia }; }
+    }
+    if (match) {
+      if (match.level === "departamento") {
+        $("departamentoSelect").value = match.value;
+        populateProvincias(match.value);
+        populateDistritos(match.value, null);
+        $("provinciaSelect").value = "";
+        $("distritoSelect").value = "";
+      } else if (match.level === "provincia") {
+        $("departamentoSelect").value = match.dept;
+        populateProvincias(match.dept);
+        $("provinciaSelect").value = match.value;
+        populateDistritos(match.dept, match.value);
+        $("distritoSelect").value = "";
+      } else if (match.level === "distrito") {
+        $("departamentoSelect").value = match.dept;
+        populateProvincias(match.dept);
+        $("provinciaSelect").value = match.prov;
+        populateDistritos(match.dept, match.prov);
+        $("distritoSelect").value = match.ubigeo;
+      }
+      $("distritoSearch").value = q;
+      $("suggestions").classList.remove("open");
+      cargar();
+    } else {
+      cargar();
+    }
   });
 
   deptSel.addEventListener("change", () => {
@@ -515,6 +683,15 @@ function setup() {
   /* ===== SSE ===== */
 
   const evtSource = new EventSource(`${API_BASE}/stream/accidentes`);
+
+  evtSource.addEventListener("open", () => {
+    const dot = document.querySelector("#liveIndicator .live-dot");
+    if (dot) dot.classList.remove("is-offline");
+  });
+  evtSource.addEventListener("error", () => {
+    const dot = document.querySelector("#liveIndicator .live-dot");
+    if (dot) dot.classList.add("is-offline");
+  });
 
   evtSource.addEventListener("accidente_creado", (e) => addLiveAccident(JSON.parse(e.data)));
   evtSource.addEventListener("accidente_simulado", (e) => addLiveAccident(JSON.parse(e.data)));

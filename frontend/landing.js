@@ -17,6 +17,15 @@ precision highp float;
 layout(location=0) in vec2 a_pos;
 void main(){ gl_Position = vec4(a_pos,0.0,1.0); }`;
 
+  /*
+   * Paleta ajustada respecto al original:
+   * - v controla el "color seed" del bucle (antes vec3(1.0, 2.0, 6.0), azul/morado/cian)
+   *   ahora usa tonos calidos (dorado/ambar/marron oscuro) para que combine con --gold
+   * - el factor final de tanh4 bajo de 0.2 a 0.05: esto reduce muchisimo el brillo
+   *   general, dejando un fondo predominantemente negro con destellos sutiles
+   * - se suma un pequeño sesgo de color (warmTint) para que el resplandor que se
+   *   forma en una esquina del shader tienda a dorado en vez de cian
+   */
   const fragSrc = `#version 300 es
 precision highp float;
 out vec4 fragColor;
@@ -35,7 +44,7 @@ void main(){
   vec4 o = vec4(0.0);
 
   vec3 p = vec3(0.0);
-  vec3 v = vec3(1.0, 2.0, 6.0);
+  vec3 v = vec3(2.4, 1.6, 0.7);
   float i = 0.0, z = 1.0, d = 1.0, f = 1.0;
 
   for ( ; i++ < 5e1;
@@ -52,7 +61,11 @@ void main(){
            ( f = 2.0 + d / exp(p.y * 0.2) ) );
   }
 
-  o = tanh4(0.2 * o);
+  o = tanh4(0.05 * o);
+
+  vec3 warmTint = vec3(1.05, 0.86, 0.55);
+  o.rgb *= warmTint;
+
   o.a = 1.0;
   fragColor = o;
 }`;
@@ -129,38 +142,13 @@ void main(){
   }
   raf = requestAnimationFrame(frame);
 
-  /* ========== Counter animation ========== */
-
-  const counters = document.querySelectorAll("[data-count]");
-
-  function animateCounter(el) {
-    const target = parseInt(el.getAttribute("data-count"), 10);
-    if (!target || target === 0) {
-      el.textContent = "0";
-      return;
-    }
-    const dur = 1500;
-    const start = performance.now();
-
-    function tick(now) {
-      const p = Math.min((now - start) / dur, 1);
-      const eased = 1 - Math.pow(1 - p, 3);
-      el.textContent = Math.round(eased * target);
-      if (p < 1) requestAnimationFrame(tick);
-    }
-    requestAnimationFrame(tick);
-  }
+  /* ========== Fade-in al hacer scroll ========== */
 
   const observer = new IntersectionObserver(
     (entries) => {
       entries.forEach((entry) => {
         if (!entry.isIntersecting) return;
         entry.target.classList.add("visible");
-        const num = entry.target.querySelector("[data-count]");
-        if (num && !num.dataset.counted) {
-          num.dataset.counted = "1";
-          animateCounter(num);
-        }
         observer.unobserve(entry.target);
       });
     },
@@ -169,3 +157,67 @@ void main(){
 
   document.querySelectorAll(".fade-in").forEach((el) => observer.observe(el));
 })();
+
+/* ========== Última actualización ========== */
+
+async function cargarUltimaActualizacion() {
+  const el = document.getElementById("ultimaActualizacion");
+  if (!el) return;
+  try {
+    const resp = await fetch(`${location.origin}/api/accidentes/stats`);
+    const json = await resp.json();
+    const fecha = new Date(json.ultimaActualizacion);
+    const ahora = new Date();
+    const diffMin = Math.round((ahora - fecha) / 60000);
+    let texto;
+    if (diffMin < 1) texto = "hace instantes";
+    else if (diffMin < 60) texto = `hace ${diffMin} min`;
+    else if (diffMin < 1440) texto = `hace ${Math.round(diffMin / 60)} h`;
+    else texto = fecha.toLocaleDateString("es-PE", { day: "numeric", month: "short", year: "numeric" });
+    el.textContent = `Actualizado ${texto}`;
+  } catch (e) {
+    console.error("No se pudo cargar última actualización:", e.message);
+    el.textContent = "";
+  }
+}
+cargarUltimaActualizacion();
+setInterval(cargarUltimaActualizacion, 30000); // refrescar cada 30s
+
+/* ========== Contadores animados al hacer scroll ========== */
+
+async function cargarStats() {
+  try {
+    const resp = await fetch(`${location.origin}/api/accidentes/stats`);
+    const json = await resp.json();
+    const total = json.reconcile?.sratmaListed != null ? json.reconcile.sratmaListed : json.totalAccidentes;
+    animateNumber("statTotal", total);
+    animateNumber("statDepartamentos", json.totalDepartamentos);
+  } catch (e) {
+    console.error("No se pudieron cargar las estadísticas:", e.message);
+  }
+}
+
+function animateNumber(id, target) {
+  const el = document.getElementById(id);
+  if (!el || typeof target !== "number") { if (el) el.textContent = "—"; return; }
+  const dur = 1200;
+  const start = performance.now();
+  function tick(now) {
+    const p = Math.min((now - start) / dur, 1);
+    const eased = 1 - Math.pow(1 - p, 3);
+    el.textContent = Math.round(eased * target).toLocaleString("es-PE");
+    if (p < 1) requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+
+const statsObserver = new IntersectionObserver((entries) => {
+  entries.forEach((entry) => {
+    if (!entry.isIntersecting) return;
+    cargarStats();
+    statsObserver.disconnect();
+  });
+}, { threshold: 0.3 });
+
+const featureListEl = document.querySelector(".feature-list");
+if (featureListEl) statsObserver.observe(featureListEl);

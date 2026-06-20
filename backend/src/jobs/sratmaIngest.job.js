@@ -4,6 +4,7 @@ const {
 } = require("../integrations/sratma.client");
 
 const { asyncPool } = require("../utils/pool");
+const sratmaCache = require("../integrations/sratmaCache");
 const {
   createAccidente,
   accidenteExists,
@@ -484,6 +485,7 @@ async function tick({ intervalMs, concurrency, ipInput } = {}) {
     const list = await listarAccidenteMapa(ipInput);
     ids = extractIds(list);
     ids.sort((a, b) => a - b);
+    sratmaCache.update(ids);
 
     log("tick_list_ok", {
       intervalMs,

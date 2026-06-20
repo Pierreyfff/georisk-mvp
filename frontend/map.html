@@ -7,28 +7,27 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
   <style>
     :root {
       --bg-base: #05060a;
       --bg-surface: #080b17;
       --bg-card: #0c1020;
       --bg-input: #121834;
-      --border: rgba(255,255,255,0.06);
-      --text-primary: #e2e6f0;
-      --text-secondary: rgba(226,230,240,0.5);
-      --text-muted: rgba(226,230,240,0.22);
-      --blue: #3a7bd5;
-      --purple: #8a4fc9;
-      --amber: #d18a3a;
-      --cyan: #22b8c8;
+      --border: rgba(255,255,255,0.1);
+      --text-primary: #eef0f5;
+      --text-secondary: rgba(238,240,245,0.78);
+      --text-muted: rgba(238,240,245,0.4);
+      --gold: #e9c073;
+      --gold-soft: #c79a5a;
       --green: #2ecc71;
       --red: #e74c3c;
       --yellow: #f1c40f;
+      --purple: #8a4fc9;
     }
 
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg-base); font-family: 'JetBrains Mono', 'Courier New', monospace; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg-base); font-family: 'Inter', -apple-system, sans-serif; }
 
     #map {
       position: absolute;
@@ -39,13 +38,15 @@
 
     #controls {
       position: absolute;
-      top: 16px; left: 16px;
+      top: 50%; left: 16px;
+      transform: translateY(-50%);
       z-index: 1000;
       display: flex;
       flex-direction: column;
       gap: 8px;
       width: 300px;
       pointer-events: none;
+      max-height: calc(100vh - 40px);
     }
 
     #controls > * { pointer-events: auto; }
@@ -89,7 +90,7 @@
       display: flex;
       align-items: center;
       gap: 5px;
-      font-size: 9px;
+      font-size: 10px;
       text-transform: uppercase;
       letter-spacing: .06em;
       color: var(--text-secondary);
@@ -116,7 +117,7 @@
 
     .filter-group input::placeholder { color: var(--text-muted); }
     .filter-group input:focus,
-    .filter-group select:focus { border-color: var(--blue); }
+    .filter-group select:focus { border-color: var(--gold); }
 
     .filter-group select option { background: var(--bg-input); color: var(--text-primary); }
 
@@ -153,8 +154,8 @@
     }
     #suggestions .s-item:last-child { border-bottom: none; }
     #suggestions .s-item:hover,
-    #suggestions .s-item.active { background: rgba(58,123,213,0.1); color: var(--text-primary); }
-    #suggestions .s-item .match { color: var(--blue); font-weight: 500; }
+    #suggestions .s-item.active { background: rgba(233,192,115,0.12); color: var(--text-primary); }
+    #suggestions .s-item .match { color: var(--gold); font-weight: 500; }
 #suggestions .s-item .hint { font-size: 10px; color: var(--text-muted); margin-left: 6px; }
 
     .action-row {
@@ -173,8 +174,8 @@
       align-items: center;
       gap: 6px;
       padding: 7px 16px;
-      background: var(--blue);
-      color: #fff;
+      background: var(--gold);
+      color: #221a0c;
       border: none;
       border-radius: 8px;
       font-size: 12px;
@@ -185,10 +186,25 @@
       transition: background .15s, transform .15s;
     }
 
-    #btnCargar:hover { background: #2d5fa8; transform: translateY(-1px); }
+    #btnCargar:hover { background: var(--gold-soft); transform: translateY(-1px); }
     #btnCargar:active { transform: scale(.97); }
 
     #btnCargar svg { width: 14px; height: 14px; }
+
+    #btnExportar {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 7px 10px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: border-color .15s, color .15s;
+    }
+    #btnExportar:hover { border-color: var(--gold); color: var(--gold); }
+    #btnExportar svg { width: 14px; height: 14px; }
 
     .kpi-wrap {
       position: absolute;
@@ -233,7 +249,7 @@
     }
     .kpi-card .label {
       color: var(--text-secondary);
-      font-size: 9px;
+      font-size: 10px;
       text-transform: uppercase;
       letter-spacing: .5px;
     }
@@ -241,9 +257,64 @@
     .leaflet-popup-content {
       font-size: 13px;
       line-height: 1.5;
-      font-family: 'Space Grotesk', system-ui, sans-serif;
+      font-family: 'Inter', system-ui, sans-serif;
     }
     .leaflet-popup-content b { color: #1a1d2e; }
+
+    .map-status {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 999;
+      background: rgba(8,11,23,.94);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px 24px;
+      font-size: 13px;
+      color: var(--text-secondary);
+      text-align: center;
+      pointer-events: none;
+      box-shadow: 0 8px 40px rgba(0,0,0,.55);
+    }
+    .map-status.is-error { color: #ff9b8a; border-color: rgba(231,76,60,0.3); }
+
+    .live-indicator {
+      position: absolute;
+      top: 16px;
+      right: 64px;
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(8,11,23,.94);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 8px 14px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+    .live-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 0 0 rgba(46,204,113,.6);
+      animation: live-pulse 2s infinite;
+    }
+    .live-dot.is-offline { background: var(--red); animation: none; }
+    @keyframes live-pulse {
+      0%   { box-shadow: 0 0 0 0 rgba(46,204,113,.5); }
+      70%  { box-shadow: 0 0 0 6px rgba(46,204,113,0); }
+      100% { box-shadow: 0 0 0 0 rgba(46,204,113,0); }
+    }
 
     .leaflet-control-zoom a {
       background: rgba(8,11,23,.9) !important;
@@ -251,16 +322,157 @@
       border-color: var(--border) !important;
     }
 
+    .back-btn {
+      position: absolute;
+      top: 16px;
+      left: 62px;
+      z-index: 1000;
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(8,11,23,.94);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      box-shadow: 0 8px 40px rgba(0,0,0,.55);
+      transition: color .15s, transform .15s;
+      text-decoration: none;
+    }
+    .back-btn:hover { color: var(--gold); transform: translateX(-2px); }
+    .back-btn svg { width: 20px; height: 20px; }
+
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      background: rgba(0,0,0,.6);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(4px);
+    }
+    .modal-overlay.open { display: flex; }
+    .modal-box {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+      max-width: 520px;
+      width: 90vw;
+      max-height: 80vh;
+      overflow-y: auto;
+      box-shadow: 0 24px 80px rgba(0,0,0,.6);
+    }
+    .modal-box h3 {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: 1rem;
+    }
+    .modal-box pre {
+      font-family: 'Inter', monospace;
+      font-size: 0.78rem;
+      color: var(--text-secondary);
+      background: rgba(0,0,0,.3);
+      border-radius: 8px;
+      padding: 12px;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+      line-height: 1.5;
+    }
+    .modal-close {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 1rem;
+      padding: 7px 16px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text-secondary);
+      font-size: 12px;
+      font-family: inherit;
+      cursor: pointer;
+      transition: border-color .15s, color .15s;
+    }
+    .modal-close:hover { border-color: var(--gold); color: var(--gold); }
+
+    .theme-toggle {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      z-index: 1000;
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(8,11,23,.94);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--gold);
+      cursor: pointer;
+      box-shadow: 0 8px 40px rgba(0,0,0,.55);
+      transition: background .15s, transform .15s;
+    }
+    .theme-toggle:hover { background: rgba(18,24,52,.96); transform: translateY(-1px); }
+    .theme-toggle:active { transform: scale(.95); }
+    .theme-toggle svg { width: 20px; height: 20px; }
+
+    @media (max-width: 768px) {
+      #controls { width: 260px; }
+      .kpi-card { min-width: 80px; padding: 6px 10px; }
+      .kpi-card .value { font-size: 13px; }
+    }
+
     @media (max-width: 640px) {
-      #controls { top: 10px; left: 10px; right: 10px; width: auto; max-width: none; }
-      .kpi-wrap { bottom: 12px; gap: 4px; }
-      .kpi-card { padding: 8px 12px; min-width: 75px; }
-      .kpi-card .value { font-size: 14px; }
+      #controls { top: 10px; left: 10px; right: 10px; width: auto; max-width: none; transform: none; }
+      .kpi-wrap { bottom: 12px; gap: 4px; flex-wrap: wrap; justify-content: center; }
+      .kpi-card { padding: 6px 10px; min-width: 70px; }
+      .kpi-card .value { font-size: 13px; }
+      .kpi-card .label { font-size: 9px; }
+      .kpi-card .dot { width: 6px; height: 6px; }
+      .back-btn { top: 10px; left: 46px; width: 32px; height: 32px; }
+      .back-btn svg { width: 16px; height: 16px; }
+      .theme-toggle { top: 10px; right: 10px; width: 32px; height: 32px; }
+      .theme-toggle svg { width: 16px; height: 16px; }
+      .live-indicator { top: 10px; right: 48px; padding: 4px 8px; font-size: 9px; }
     }
   </style>
 </head>
 <body>
   <div id="map"></div>
+  <div id="mapStatus" class="map-status" style="display:none"></div>
+
+  <div id="liveIndicator" class="live-indicator" title="Conexión en tiempo real">
+    <span class="live-dot"></span>
+    <span class="live-label">En vivo</span>
+  </div>
+
+  <a href="/" class="back-btn" aria-label="Volver al inicio" title="Volver al inicio">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="19" y1="12" x2="5" y2="12"/>
+      <polyline points="12 19 5 12 12 5"/>
+    </svg>
+  </a>
+
+  <button id="themeToggle" class="theme-toggle" type="button" aria-label="Cambiar tema del mapa" title="Cambiar tema del mapa">
+    <svg id="iconSun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="4"/>
+      <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>
+    </svg>
+    <svg id="iconMoon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none">
+      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+    </svg>
+  </button>
 
   <div id="controls">
     <div class="ctrl-card" id="filterCard">
@@ -328,6 +540,13 @@
           </svg>
           Actualizar
         </button>
+        <button id="btnExportar" type="button" title="Descargar CSV de esta vista">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+        </button>
       </div>
     </div>
   </div>
@@ -367,6 +586,14 @@
         <div class="value" id="kpiProm">0.0</div>
         <div class="label">Promedio</div>
       </div>
+    </div>
+  </div>
+
+  <div id="auditModal" class="modal-overlay">
+    <div class="modal-box">
+      <h3>Auditor&iacute;a del accidente</h3>
+      <pre id="auditContent"></pre>
+      <button class="modal-close" id="auditClose">Cerrar</button>
     </div>
   </div>
 

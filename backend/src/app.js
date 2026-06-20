@@ -1,6 +1,10 @@
+require("dotenv").config();
+require("./reactive/eventBus");
+
 const express = require("express");
+const helmet = require("helmet");
+const rateLimit = require("express-rate-limit");
 const cors = require("cors");
-const { pool } = require("./db/pool");
 const { router: accidentesRouter } = require("./routes/accidentes.routes");
 const { router: streamRouter } = require("./routes/stream.routes");
 const distritosRouter = require("./routes/distritos.routes");
@@ -8,63 +12,60 @@ const { router: ingestRunsRouter } = require("./routes/ingestRuns.routes");
 
 const app = express();
 
-app.use(cors());
-app.use(express.json());
+/* ===== seguridad ===== */
+app.use(helmet());
+app.use(cors({ origin: process.env.CORS_ORIGIN || "http://localhost:8080" }));
+app.use(express.json({ limit: "10kb" }));
 
-app.get("/health", (req, res) =>
-  res.json({ ok: true, service: "georisk-backend" }),
-);
+const limiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Demasiadas solicitudes. Intenta de nuevo en un minuto." },
+});
+app.use("/api/", limiter);
 
-app.get("/ingest-status", async (req, res, next) => {
+/* ===== health ===== */
+app.get("/health", async (req, res) => {
   try {
-    const [dbCount, sratmaCount, lastRun] = await Promise.all([
-      pool.query(
-        "SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE fuente='SRATMA')::int AS sratma, MAX(external_id)::bigint AS max_id, MAX(fecha) AS max_fecha FROM accidentes",
-      ),
-      pool.query(
-        "SELECT COALESCE(SUM(created), 0)::int AS total_created, COALESCE(SUM(errors), 0)::int AS total_errors, COUNT(*)::int AS runs FROM ingest_runs",
-      ),
-      pool.query(
-        "SELECT id, fuente, mode, started_at, finished_at, created, errors, notes FROM ingest_runs ORDER BY id DESC LIMIT 1",
-      ),
-    ]);
-
-    const counts = dbCount.rows[0];
-    const agg = sratmaCount.rows[0];
-
-    res.json({
-      ok: true,
-      database: {
-        total_accidentes: counts.total,
-        sratma_accidentes: counts.sratma,
-        max_external_id: counts.max_id,
-        max_fecha: counts.max_fecha,
-      },
-      ingestion: {
-        total_created: agg.total_created,
-        total_errors: agg.total_errors,
-        total_runs: agg.runs,
-      },
-      last_run: lastRun.rows[0] || null,
-    });
+    const { pool } = require("./db/pool");
+    const { rows } = await pool.query("SELECT 1 AS ok");
+    res.json({ status: "ok", db: rows[0].ok === 1 });
   } catch (e) {
-    next(e);
+    res.status(503).json({ status: "error", db: false });
   }
 });
 
+app.get("/ingest-status", async (req, res) => {
+  try {
+    const { pool } = require("./db/pool");
+    const { rows } = await pool.query(`
+      SELECT
+        COUNT(*)::int AS total,
+        COUNT(*) FILTER (WHERE fuente='SRATMA')::int AS sratma,
+        MAX(external_id)::bigint AS max_id,
+        MAX(fecha) AS max_fecha
+      FROM accidentes
+    `);
+    res.json(rows[0]);
+  } catch (e) {
+    res.status(503).json({ error: "no db" });
+  }
+});
+
+/* ===== routes ===== */
 app.use("/accidentes", accidentesRouter);
 app.use("/stream", streamRouter);
 app.use("/distritos", distritosRouter);
-
-// Auditoría de ingestas
 app.use("/ingest-runs", ingestRunsRouter);
 
-// Manejo de errores centralizado
+/* ===== error handler ===== */
 app.use((err, req, res, next) => {
   const status = err.status || 500;
-  res.status(status).json({
-    error: err.message || "Error interno",
-  });
+  const message = status === 500 ? "Error interno del servidor." : err.message;
+  if (status === 500) console.error("Unhandled error:", err);
+  res.status(status).json({ error: message });
 });
 
-module.exports = { app };
+module.exports = app;

@@ -1,4 +1,17 @@
 const repo = require("../repositories/accidentes.repository");
+const distritosRepo = require("../repositories/distritos.repository");
+const { listarAccidenteMapa } = require("../integrations/sratma.client");
+const sratmaCache = require("../integrations/sratmaCache");
+
+function extractIds(listJson) {
+  const features = listJson?.accidente?.features || [];
+  const ids = [];
+  for (const f of features) {
+    const id = f?.properties?.id_accidente;
+    if (id != null) ids.push(Number(id));
+  }
+  return ids.filter((x) => Number.isFinite(x));
+}
 
 const GRAVEDADES_VALIDAS = new Set(["Baja", "Media", "Alta"]);
 
@@ -112,16 +125,28 @@ async function createAccidente(accidente) {
   });
 }
 
-async function getAccidentesFiltrados({ distrito, gravedad }) {
-  const base = await repo.findFiltered({ distrito, gravedad });
+async function getAccidentesFiltrados({ distrito, gravedad, verified }) {
+  let base = await repo.findFiltered({ distrito, gravedad });
+
+  if (verified === "true" || verified === true) {
+    const activeSet = sratmaCache.getActiveIds();
+    if (activeSet.size > 0) {
+      base = base.filter((a) => a.external_id != null && activeSet.has(Number(a.external_id)));
+    }
+  }
 
   const gravedadScore = (g) => (g === "Baja" ? 1 : g === "Media" ? 2 : 3);
 
   const data = base.map((a) => {
     const fechaISO = new Date(a.fecha).toISOString().slice(0, 10);
+    const provincia = a.raw?.provincia || null;
+    const departamento = a.raw?.departamento || null;
 
+    const { raw, ...safe } = a;
     return {
-      ...a,
+      ...safe,
+      provincia,
+      departamento,
       fecha: fechaISO,
       gravedadScore: gravedadScore(a.gravedad),
       timestampLocal: `${fechaISO} ${a.hora}`,
@@ -168,6 +193,45 @@ async function getAccidentesFiltrados({ distrito, gravedad }) {
   };
 }
 
+async function getReconciliation() {
+  const stats = await repo.getStats();
+  const lastFetch = sratmaCache.getLastFetch();
+  const verifiedCount = sratmaCache.getCount();
+  return {
+    dbTotal: stats.totalAccidentes,
+    sratmaListed: verifiedCount || null,
+    sratmaError: null,
+    verified: verifiedCount > 0 ? stats.totalAccidentes === verifiedCount : null,
+    checkedAt: lastFetch ? lastFetch.toISOString() : new Date().toISOString(),
+  };
+}
+
+async function getStats() {
+  const [accStats, totalDepartamentos] = await Promise.all([
+    repo.getStats(),
+    distritosRepo.countDepartamentos(),
+  ]);
+  return { ...accStats, totalDepartamentos };
+}
+
+async function getVerifiedStats() {
+  const stats = await getStats();
+  const lastFetch = sratmaCache.getLastFetch();
+  const verifiedCount = sratmaCache.getCount();
+  return {
+    ...stats,
+    totalAccidentes: verifiedCount > 0 ? verifiedCount : stats.totalAccidentes,
+    ultimaActualizacion: lastFetch ? lastFetch.toISOString() : stats.ultimaActualizacion,
+    reconcile: {
+      dbTotal: stats.totalAccidentes,
+      sratmaListed: verifiedCount,
+      sratmaError: null,
+      verified: verifiedCount > 0 ? stats.totalAccidentes === verifiedCount : null,
+      checkedAt: lastFetch ? lastFetch.toISOString() : null,
+    },
+  };
+}
+
 module.exports = {
   getAccidentes,
   createAccidente,
@@ -177,4 +241,7 @@ module.exports = {
   getLastFechaByFuente,
   getAccidenteById,
   getAccidenteByFuenteExternalId,
+  getStats,
+  getVerifiedStats,
+  getReconciliation,
 };
