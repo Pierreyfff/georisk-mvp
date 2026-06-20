@@ -85,4 +85,10 @@ async function getAggregatedGeoJson({ departamento, provincia }) {
   return rows[0] || null;
 }
 
-module.exports = { list, getGeoJsonByUbigeo, getAggregatedGeoJson };
+async function countDepartamentos() {
+  const sql = `SELECT COUNT(DISTINCT departamento)::int AS total FROM distritos;`;
+  const { rows } = await pool.query(sql);
+  return rows[0].total;
+}
+
+module.exports = { list, getGeoJsonByUbigeo, getAggregatedGeoJson, countDepartamentos };

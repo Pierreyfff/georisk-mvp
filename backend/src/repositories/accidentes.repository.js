@@ -200,6 +200,27 @@ async function findBaseDataset() {
   return findAll();
 }
 
+async function getStats() {
+  const sql = `
+    SELECT
+      COUNT(*)::int AS total_accidentes,
+      COUNT(DISTINCT ubigeo)::int AS total_distritos,
+      MAX(ingested_at)::text AS ultima_actualizacion,
+      COUNT(*) FILTER (WHERE gravedad = 'Baja')::int AS baja,
+      COUNT(*) FILTER (WHERE gravedad = 'Media')::int AS media,
+      COUNT(*) FILTER (WHERE gravedad = 'Alta')::int AS alta
+    FROM accidentes;
+  `;
+  const { rows } = await pool.query(sql);
+  const r = rows[0];
+  return {
+    totalAccidentes: r.total_accidentes,
+    totalDistritos: r.total_distritos,
+    porGravedad: { Baja: r.baja, Media: r.media, Alta: r.alta },
+    ultimaActualizacion: r.ultima_actualizacion,
+  };
+}
+
 module.exports = {
   findAll,
   existsByFuenteExternalId,
@@ -210,4 +231,5 @@ module.exports = {
   findById,
   findByFuenteExternalId,
   findBaseDataset,
+  getStats,
 };

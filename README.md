@@ -129,7 +129,8 @@ georisk/
 ├── docs/
 │   └── PLAN_INGESTA.md             # Plan de mejora del sistema de ingesta SRATMA
 │
-├── data/                           # Directorio para datos en runtime (vacío)
+├── frontend/images/
+│   └── map2-removebg-preview.*     # PNG + WebP del mapa ilustrativo
 ├── docker-compose.yml              # Orquestación de 3 servicios
 └── .gitignore
 ```
