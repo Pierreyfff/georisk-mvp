@@ -1,6 +1,6 @@
 {
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "https://georisk-api.onrender.com/api/$1" },
+    { "source": "/api/(.*)", "destination": "https://georisk-mvp.onrender.com/api/$1" },
     { "source": "/(.*)", "destination": "/$1" }
   ],
   "trailingSlash": false,
