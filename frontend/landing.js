@@ -116,7 +116,8 @@ void main(){
   const uTime = gl.getUniformLocation(prog, "u_time");
 
   function resize() {
-    const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+    const maxDpr = window.innerWidth < 768 ? 1 : 2;
+    const dpr = Math.max(1, Math.min(maxDpr, window.devicePixelRatio || 1));
     const w = Math.floor((canvas.clientWidth || window.innerWidth) * dpr);
     const h = Math.floor((canvas.clientHeight || window.innerHeight) * dpr);
     if (canvas.width !== w || canvas.height !== h) {
