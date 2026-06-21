@@ -298,6 +298,8 @@ async function cargar() {
     renderKpis(computeKpis(data));
     await drawBoundary();
     if (!dist) fitMapToVisibleMarkers();
+    const dot = document.querySelector("#liveIndicator .live-dot");
+    if (dot) dot.classList.remove("is-offline");
   } catch (e) {
     console.error("Error al cargar accidentes:", e.message);
     showMapStatus("No se pudieron cargar los accidentes. Intenta de nuevo.", true);
@@ -740,16 +742,18 @@ function setup() {
 
 /* ===== Health check independiente ===== */
 
+const HEALTH_URLS = [
+  () => `${location.origin}/api/accidentes/stats`,
+  () => `${location.origin}/api/accidentes/filtrados?limit=1`,
+];
 async function checkApiStatus() {
   const dot = document.querySelector("#liveIndicator .live-dot");
   if (!dot) return;
-  for (let i = 0; i < 3; i++) {
+  for (const url of HEALTH_URLS) {
     try {
-      const resp = await fetch(`${location.origin}/api/accidentes/stats`);
+      const resp = await fetch(url());
       if (resp.ok) { dot.classList.remove("is-offline"); return; }
-    } catch (e) {
-      if (i < 2) await new Promise(r => setTimeout(r, 2000));
-    }
+    } catch (_) {}
   }
   dot.classList.add("is-offline");
 }
