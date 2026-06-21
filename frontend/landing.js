@@ -181,6 +181,11 @@ void main(){
   );
   visObserver.observe(canvas);
 
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) stopLoop();
+    else startLoop();
+  });
+
   startLoop();
 
   /* ========== Fade-in al hacer scroll ========== */

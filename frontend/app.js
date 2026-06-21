@@ -705,22 +705,6 @@ function setup() {
   const SSE_BASE = isLocal ? API_BASE : (window.GEORISK_CONFIG?.SSE_BASE || API_BASE);
   let sseFailed = false;
 
-  async function checkApiStatus() {
-    let ok = false;
-    for (let i = 0; i < 3; i++) {
-      try {
-        const resp = await fetch(`${API_BASE}/accidentes/stats`);
-        if (resp.ok) { ok = true; break; }
-      } catch (e) {
-        if (i < 2) await new Promise(r => setTimeout(r, 2000));
-      }
-    }
-    const dot = document.querySelector("#liveIndicator .live-dot");
-    if (dot) dot.classList.toggle("is-offline", !ok);
-  }
-  checkApiStatus();
-  setInterval(checkApiStatus, 30000);
-
   const evtSource = new EventSource(`${SSE_BASE}/stream/accidentes`);
 
   evtSource.addEventListener("error", () => {
@@ -752,6 +736,28 @@ function setup() {
     if (normalized.gravedad === "Media") inc("kpiMedia");
     if (normalized.gravedad === "Alta") inc("kpiAlta");
   }
+}
+
+/* ===== Health check independiente ===== */
+
+async function checkApiStatus() {
+  const dot = document.querySelector("#liveIndicator .live-dot");
+  if (!dot) return;
+  for (let i = 0; i < 3; i++) {
+    try {
+      const resp = await fetch(`${location.origin}/api/accidentes/stats`);
+      if (resp.ok) { dot.classList.remove("is-offline"); return; }
+    } catch (e) {
+      if (i < 2) await new Promise(r => setTimeout(r, 2000));
+    }
+  }
+  dot.classList.add("is-offline");
+}
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", () => { checkApiStatus(); setInterval(checkApiStatus, 30000); });
+} else {
+  checkApiStatus();
+  setInterval(checkApiStatus, 30000);
 }
 
 if (document.readyState === "loading") {
