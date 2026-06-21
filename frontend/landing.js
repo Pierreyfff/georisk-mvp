@@ -13,9 +13,9 @@
   }
 
   const isMobile = window.innerWidth < 768 || window.matchMedia("(pointer: coarse)").matches;
-  const MAX_ITERATIONS = isMobile ? 18 : 50;
-  const FPS_INTERVAL = 1000 / (isMobile ? 30 : 60);
-  const MAX_DPR = isMobile ? 0.75 : 2;
+  const MAX_ITERATIONS = isMobile ? 8 : 50;
+  const FPS_INTERVAL = 1000 / (isMobile ? 20 : 60);
+  const MAX_DPR = isMobile ? 0.5 : 2;
 
   const vertSrc = `#version 300 es
 precision highp float;

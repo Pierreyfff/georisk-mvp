@@ -706,15 +706,17 @@ function setup() {
   let sseFailed = false;
 
   async function checkApiStatus() {
-    try {
-      const resp = await fetch(`${API_BASE}/accidentes/stats`, { signal: AbortSignal.timeout(5000) });
-      const dot = document.querySelector("#liveIndicator .live-dot");
-      if (resp.ok) { if (dot) dot.classList.remove("is-offline"); }
-      else { if (dot) dot.classList.add("is-offline"); }
-    } catch {
-      const dot = document.querySelector("#liveIndicator .live-dot");
-      if (dot) dot.classList.add("is-offline");
+    let ok = false;
+    for (let i = 0; i < 3; i++) {
+      try {
+        const resp = await fetch(`${API_BASE}/accidentes/stats`);
+        if (resp.ok) { ok = true; break; }
+      } catch (e) {
+        if (i < 2) await new Promise(r => setTimeout(r, 2000));
+      }
     }
+    const dot = document.querySelector("#liveIndicator .live-dot");
+    if (dot) dot.classList.toggle("is-offline", !ok);
   }
   checkApiStatus();
   setInterval(checkApiStatus, 30000);
