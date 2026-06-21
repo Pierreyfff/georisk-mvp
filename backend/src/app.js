@@ -26,6 +26,11 @@ const limiter = rateLimit({
 });
 app.use("/api/", limiter);
 
+/* ===== SSE fallback redirect (por si alguien llama sin /api) ===== */
+app.get("/stream/accidentes", (req, res) => {
+  res.redirect(301, "/api/stream/accidentes");
+});
+
 /* ===== health ===== */
 app.get("/health", async (req, res) => {
   try {
