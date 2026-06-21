@@ -12,6 +12,11 @@
     return;
   }
 
+  const isMobile = window.innerWidth < 768 || window.matchMedia("(pointer: coarse)").matches;
+  const MAX_ITERATIONS = isMobile ? 18 : 50;
+  const FPS_INTERVAL = 1000 / (isMobile ? 30 : 60);
+  const MAX_DPR = isMobile ? 0.75 : 2;
+
   const vertSrc = `#version 300 es
 precision highp float;
 layout(location=0) in vec2 a_pos;
@@ -32,6 +37,7 @@ out vec4 fragColor;
 
 uniform vec2  u_res;
 uniform float u_time;
+uniform float u_iterations;
 
 float tanh1(float x){ float e = exp(2.0*x); return (e-1.0)/(e+1.0); }
 vec4 tanh4(vec4 v){ return vec4(tanh1(v.x), tanh1(v.y), tanh1(v.z), tanh1(v.w)); }
@@ -47,7 +53,8 @@ void main(){
   vec3 v = vec3(2.4, 1.6, 0.7);
   float i = 0.0, z = 1.0, d = 1.0, f = 1.0;
 
-  for ( ; i++ < 5e1;
+  float maxIter = u_iterations;
+  for ( ; i++ < maxIter;
         o.rgb += (cos((p.x + z + v) * 0.1) + 1.0) / d / f / z )
   {
     p = z * normalize(FC * 2.0 - r.xyy);
@@ -114,10 +121,11 @@ void main(){
 
   const uRes = gl.getUniformLocation(prog, "u_res");
   const uTime = gl.getUniformLocation(prog, "u_time");
+  const uIterations = gl.getUniformLocation(prog, "u_iterations");
+  gl.uniform1f(uIterations, MAX_ITERATIONS);
 
   function resize() {
-    const maxDpr = window.innerWidth < 768 ? 1 : 2;
-    const dpr = Math.max(1, Math.min(maxDpr, window.devicePixelRatio || 1));
+    const dpr = Math.max(0.5, Math.min(MAX_DPR, window.devicePixelRatio || 1));
     const w = Math.floor((canvas.clientWidth || window.innerWidth) * dpr);
     const h = Math.floor((canvas.clientHeight || window.innerHeight) * dpr);
     if (canvas.width !== w || canvas.height !== h) {
@@ -132,16 +140,48 @@ void main(){
   resize();
 
   let raf = 0;
+  let running = false;
   const t0 = performance.now();
+  let lastFrameTime = 0;
 
   function frame(now) {
-    const t = (now - t0) / 1000;
-    gl.uniform1f(uTime, t);
+    if (!running) return;
+    const elapsed = now - lastFrameTime;
+    if (elapsed < FPS_INTERVAL) {
+      raf = requestAnimationFrame(frame);
+      return;
+    }
+    lastFrameTime = now - (elapsed % FPS_INTERVAL);
+    gl.uniform1f(uTime, (now - t0) / 1000);
     gl.clear(gl.COLOR_BUFFER_BIT);
     gl.drawArrays(gl.TRIANGLES, 0, 6);
     raf = requestAnimationFrame(frame);
   }
-  raf = requestAnimationFrame(frame);
+
+  function startLoop() {
+    if (running) return;
+    running = true;
+    lastFrameTime = performance.now();
+    raf = requestAnimationFrame(frame);
+  }
+
+  function stopLoop() {
+    running = false;
+    if (raf) { cancelAnimationFrame(raf); raf = 0; }
+  }
+
+  const visObserver = new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) {
+        if (entry.isIntersecting) startLoop();
+        else stopLoop();
+      }
+    },
+    { threshold: 0 }
+  );
+  visObserver.observe(canvas);
+
+  startLoop();
 
   /* ========== Fade-in al hacer scroll ========== */
 

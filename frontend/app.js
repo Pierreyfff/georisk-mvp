@@ -705,15 +705,23 @@ function setup() {
   const SSE_BASE = isLocal ? API_BASE : (window.GEORISK_CONFIG?.SSE_BASE || API_BASE);
   let sseFailed = false;
 
+  async function checkApiStatus() {
+    try {
+      const resp = await fetch(`${API_BASE}/accidentes/stats`, { signal: AbortSignal.timeout(5000) });
+      const dot = document.querySelector("#liveIndicator .live-dot");
+      if (resp.ok) { if (dot) dot.classList.remove("is-offline"); }
+      else { if (dot) dot.classList.add("is-offline"); }
+    } catch {
+      const dot = document.querySelector("#liveIndicator .live-dot");
+      if (dot) dot.classList.add("is-offline");
+    }
+  }
+  checkApiStatus();
+  setInterval(checkApiStatus, 30000);
+
   const evtSource = new EventSource(`${SSE_BASE}/stream/accidentes`);
 
-  evtSource.addEventListener("open", () => {
-    const dot = document.querySelector("#liveIndicator .live-dot");
-    if (dot) dot.classList.remove("is-offline");
-  });
   evtSource.addEventListener("error", () => {
-    const dot = document.querySelector("#liveIndicator .live-dot");
-    if (dot) dot.classList.add("is-offline");
     if (!sseFailed) {
       sseFailed = true;
       setInterval(cargar, 30000);
