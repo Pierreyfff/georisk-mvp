@@ -200,6 +200,17 @@ async function findBaseDataset() {
   return findAll();
 }
 
+async function countByExternalIds(ids) {
+  if (!ids || ids.length === 0) return 0;
+  const sql = `
+    SELECT COUNT(*)::int AS count
+    FROM accidentes
+    WHERE fuente = 'SRATMA' AND external_id = ANY($1::bigint[])
+  `;
+  const { rows } = await pool.query(sql, [ids]);
+  return rows[0]?.count ?? 0;
+}
+
 async function getStats() {
   const sql = `
     SELECT
@@ -232,4 +243,5 @@ module.exports = {
   findByFuenteExternalId,
   findBaseDataset,
   getStats,
+  countByExternalIds,
 };

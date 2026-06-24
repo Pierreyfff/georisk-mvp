@@ -218,15 +218,23 @@ async function getVerifiedStats() {
   const stats = await getStats();
   const lastFetch = sratmaCache.getLastFetch();
   const verifiedCount = sratmaCache.getCount();
+  const activeSet = sratmaCache.getActiveIds();
+
+  let verifiedDbTotal = null;
+  if (activeSet.size > 0) {
+    verifiedDbTotal = await repo.countByExternalIds([...activeSet]);
+  }
+
   return {
     ...stats,
-    totalAccidentes: verifiedCount > 0 ? verifiedCount : stats.totalAccidentes,
+    totalAccidentes: stats.totalAccidentes,
     ultimaActualizacion: lastFetch ? lastFetch.toISOString() : stats.ultimaActualizacion,
     reconcile: {
       dbTotal: stats.totalAccidentes,
       sratmaListed: verifiedCount,
+      verifiedDbTotal,
       sratmaError: null,
-      verified: verifiedCount > 0 ? stats.totalAccidentes === verifiedCount : null,
+      verified: verifiedCount > 0 ? verifiedDbTotal === verifiedCount : null,
       checkedAt: lastFetch ? lastFetch.toISOString() : null,
     },
   };
