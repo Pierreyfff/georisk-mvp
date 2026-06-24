@@ -1,6 +1,6 @@
 # GeoRisk Analytics
 
-Sistema de monitoreo y visualización en tiempo real de accidentes de tránsito en Perú. Ingiesta datos automáticamente desde la API pública de SRATMA (MTC) mediante ingeniería inversa de sus endpoints, los almacena con georreferenciación (PostGIS) y los despliega en un mapa interactivo con Leaflet.
+Sistema de monitoreo y visualización en tiempo real de accidentes de tránsito en Perú. Ingiesta datos automáticamente desde la API pública de SRATMA (MTC) mediante ingeniería inversa de sus endpoints, los almacena con georreferenciación (PostGIS) y los despliega en un mapa interactivo con Leaflet. Incluye conciliación en memoria para asegurar que solo se muestren accidentes activos según la fuente oficial.
 
 > **Propósito:** Proporcionar una plataforma de observabilidad de siniestros viales que permita a ciudadanos, investigadores y entidades gubernamentales visualizar la siniestralidad en Perú con datos actualizados, análisis por ubicación y severidad, y trazabilidad de la ingesta de datos.
 
@@ -19,17 +19,88 @@ Sistema de monitoreo y visualización en tiempo real de accidentes de tránsito 
 
 ## Cómo obtenemos los datos (Ingeniería Inversa SRATMA)
 
-El sistema se conecta a la API pública de SRATMA del MTC (`https://sratma.mtc.gob.pe/wssratma/api/Mapa`). Los endpoints fueron descubiertos mediante **ingeniería inversa** analizando el tráfico de red de la aplicación web de SRATMA:
+El sistema se conecta a la API pública de SRATMA del MTC (`https://sratma.mtc.gob.pe/wssratma/api/Mapa`). Los endpoints fueron descubiertos mediante **ingeniería inversa** analizando el tráfico de red (DevTools → Network) de la aplicación web oficial de SRATMA:
 
-1. **`/WSAbrirMapa`** — lista los IDs de accidentes activos en el mapa en un rango de fechas. Responde con un array de `{id, fecha, codigo}`.
-2. **`/WSBuscarAccidente`** — dado un ID, devuelve el detalle completo (ubicación, tipo, gravedad, vehículos, etc.) en formato JSON.
+1. **`/WSAbrirMapa`** — lista los IDs de accidentes activos en el mapa en un rango de fechas. Responde con un array de features `{id_accidente, fecha, codigo}`.
+2. **`/WSBuscarAccidente`** — dado un ID, devuelve el detalle completo (ubicación, tipo, gravedad, vehículos, entidad, dirección, etc.) en formato JSON.
 
-El motor de ingesta (`sratmaIngest.job.js`) implementa tres modos:
-- **Backfill inicial:** si la DB está vacía, retrocede 90 días e ingiere día por día con concurrencia configurable.
-- **Tick en tiempo real:** cada 15s consulta nuevos IDs desde el último conocido y los procesa.
-- **Backfill periódico:** cada 6h repasa los últimos 3 días para capturar IDs omitidos.
+### Flujo de ingeniería inversa
 
-**Conciliación SRATMA:** Un cache en memoria (`sratmaCache.js`) mantiene los IDs activos del listado de SRATMA, actualizado en cada tick. El endpoint `/api/accidentes/stats` retorna el conteo verificado contra SRATMA, no el total crudo de la DB.
+```
+SRATMA Web App (frontend MTC)
+        │
+        ▼  (analizar con DevTools → Network → XHR/Fetch)
+Endpoints descubiertos:
+  POST /WSAbrirMapa         → lista IDs activos por fecha
+  POST /WSBuscarAccidente   → detalle completo por ID
+        │
+        ▼  (replicar en backend)
+sratma.client.js
+  - listarAccidenteMapa(ipInput)     → llama a /WSAbrirMapa
+  - listarAccidenteMapaInformacion(id) → llama a /WSBuscarAccidente
+  - retry exponencial (3 intentos con backoff de 1s)
+```
+
+### Motor de ingesta (`sratmaIngest.job.js`)
+
+Tres modos de operación:
+
+| Modo | Disparo | Qué hace |
+|------|---------|----------|
+| **Backfill inicial** | Al arrancar si DB vacía | Retrocede 90 días e ingiere día por día (máx 2000/día) |
+| **Tick** | Cada 15s | Consulta IDs nuevos desde el último `external_id` conocido (máx 200/tick) |
+| **Backfill periódico** | Cada 6h | Repasa los últimos 3 días para capturar IDs omitidos en el tick |
+
+### Flujo completo de datos
+
+```
+SRATMA API (fuente oficial)
+    │
+    ▼
+sratma.client.js  (cliente HTTP con retry)
+    │
+    ├────► sratmaCache.js  (Set en memoria: IDs activos)
+    │         │
+    │         ├── usado por /api/accidentes/stats → reconcile.sratmaListed
+    │         └── usado por /api/accidentes/filtrados?verified=true → filtra DB
+    │
+    └────► processBatch()  (extrae detalle, valida, inserta en DB)
+              │
+              ├── OK      → INSERT en accidentes (fuente='SRATMA')
+              ├── invalid → no tiene lat/lng/fecha/hora → se descarta, se loguea
+              └── error   → fallo de red/API → se reintenta en el próximo tick
+                    │
+                    ▼
+              PostgreSQL + PostGIS
+                    │
+                    ▼
+              API REST (/api/accidentes/*)
+                    │
+                    ├── /stats          → landing page (contador)
+                    ├── /filtrados      → mapa Leaflet (markers + KPIs)
+                    └── /stream         → SSE en tiempo real
+```
+
+### Ciclo de reconciliación (SRATMA Cache)
+
+```
+Cada tick:
+  1. listarAccidenteMapa() → obtiene 95 IDs actuales de SRATMA
+  2. sratmaCache.update(ids) → cache en memoria = 95
+  3. Filtrar IDs nuevos (id > last_external_id_db)
+  4. Procesar batch (fetch detalle → validar → insertar)
+  5. Fin del tick
+
+En cualquier momento:
+  /api/accidentes/stats devuelve:
+    reconcile.sratmaListed    = 95  (IDs en cache = fuente oficial)
+    reconcile.verifiedDbTotal = 88  (registros en BD que coinciden con cache)
+    reconcile.dbTotal         = ?   (total de registros en BD, todas las fuentes)
+    reconcile.verified        = true/false  (sratmaListed === verifiedDbTotal)
+
+  El gap entre sratmaListed y verifiedDbTotal son IDs que SRATMA
+  lista pero no tienen coordenadas válidas (lat/lng) para ser insertados en BD.
+```
 
 ---
 
@@ -187,22 +258,93 @@ curl http://localhost:3000/ingest-status
 
 ### SRATMA Cache & Reconciliación
 - `sratmaCache.js`: Set en memoria con los IDs activos del listado SRATMA, actualizado cada tick
-- `/api/accidentes/stats` retorna `totalAccidentes` = solo registros verificados contra SRATMA
-- `/api/accidentes/reconcile` expone `{ dbTotal, sratmaListed, verified, checkedAt }`
+- `/api/accidentes/stats` retorna:
+  - `totalAccidentes` = total de registros en BD
+  - `reconcile.sratmaListed` = IDs activos según SRATMA (fuente oficial)
+  - `reconcile.verifiedDbTotal` = registros en BD que coinciden con el cache SRATMA
+  - `reconcile.dbTotal` = total de registros en BD
+  - `reconcile.verified` = `sratmaListed === verifiedDbTotal` (true = todo en orden)
 - Mapa usa `?verified=true` para mostrar solo accidentes SRATMA-activos
+- Landing Page muestra `reconcile.sratmaListed` (total oficial)
+- Tanto landing como mapa son consistentes: el gap entre `sratmaListed` y `verifiedDbTotal` son IDs listados por SRATMA sin coordenadas válidas
 
 ---
 
 ## Base de Datos (PostGIS)
 
 ### Tabla `accidentes`
-`UNIQUE(fuente, external_id)` garantiza idempotencia. Índices GIST sobre `ubicacion` (Geography Point), B-tree sobre `(fecha DESC, hora DESC)`, `ubigeo`, `gravedad`, `fuente`. Columnas `lat`/`lng` generadas automáticamente desde `ST_Y(ubicacion)` / `ST_X(ubicacion)`.
+
+| Columna | Tipo | Descripción |
+|---------|------|-------------|
+| `id` | `SERIAL PK` | Identificador interno autoincremental |
+| `fecha` | `DATE NOT NULL` | Fecha del accidente (de SRATMA) |
+| `hora` | `TIME NOT NULL` | Hora del accidente |
+| `distrito` | `TEXT NOT NULL` | Nombre del distrito donde ocurrió |
+| `ubigeo` | `TEXT NULL CHECK ~'^\d{6}$'` | Código UBIGEO de 6 dígitos |
+| `tipo` | `TEXT NOT NULL` | Tipo/clase de accidente (vuelco, choque, atropello...) |
+| `gravedad` | `TEXT NOT NULL CHECK IN ('Baja','Media','Alta')` | Severidad según víctimas |
+| `fallecidos` | `INTEGER NULL` | Número de fallecidos |
+| `lesionados` | `INTEGER NULL` | Número de lesionados |
+| `fuente` | `TEXT NULL` | Fuente de datos (ej. 'SRATMA') |
+| `external_id` | `BIGINT NULL` | ID del accidente en la fuente externa |
+| `raw` | `JSONB NULL` | Payload completo original (solo interno, no se expone en API) |
+| `ubicacion` | `GEOGRAPHY(POINT,4326) NOT NULL` | Coordenadas geográficas (PostGIS) |
+| `lat` | `DOUBLE PRECISION GENERATED` | Latitud generada automáticamente desde `ubicacion` |
+| `lng` | `DOUBLE PRECISION GENERATED` | Longitud generada automáticamente desde `ubicacion` |
+| `vehiculos` | `INTEGER NULL` | Número de vehículos involucrados |
+| `entidad` | `TEXT NULL` | Entidad que reportó (PNP, Serenazgo, Concesionaria...) |
+| `direccion` | `TEXT NULL` | Dirección o referencia del lugar |
+| `codigo_externo` | `TEXT NULL` | Código de expediente externo |
+| `ingested_at` | `TIMESTAMPTZ DEFAULT now()` | Momento de ingesta en el sistema |
+| `updated_at` | `TIMESTAMPTZ DEFAULT now()` | Última modificación (actualizado por trigger) |
+
+**Constraints:**
+- `UNIQUE(fuente, external_id)` — garantiza idempotencia (PostgreSQL permite múltiples NULLs)
+- `CHECK(ubigeo ~ '^\d{6}$')` — formato UBIGEO válido
+- `lat`/`lng` son columnas `GENERATED ALWAYS AS (ST_Y(ubicacion::geometry))` — no requieren inserción manual
+
+**Índices:**
+- `GIST (ubicacion)` — búsquedas espaciales
+- `BTREE (fecha DESC, hora DESC)` — ordenamiento temporal
+- `BTREE (ubigeo)` — filtros por ubicación administrativa
+- `BTREE (gravedad)` — filtros por severidad
+- `BTREE (fuente)` — filtros por fuente de datos
 
 ### Tabla `distritos`
-Polígonos MultiPolygon con índice GIST. Código UBIGEO de 6 dígitos como PK.
+
+| Columna | Tipo | Descripción |
+|---------|------|-------------|
+| `ubigeo` | `TEXT PK CHECK ~'^\d{6}$'` | Código UBIGEO de 6 dígitos |
+| `departamento` | `TEXT NULL` | Nombre del departamento |
+| `provincia` | `TEXT NULL` | Nombre de la provincia |
+| `distrito` | `TEXT NULL` | Nombre del distrito |
+| `geom` | `GEOMETRY(MultiPolygon,4326) NOT NULL` | Polígono geográfico |
+
+**Índices:**
+- `GIST (geom)` — búsquedas espaciales
+- `BTREE (departamento, provincia, distrito)` — búsquedas administrativas
 
 ### Tabla `ingest_runs`
-Registro de cada ejecución del motor de ingesta (backfill/tick). Estadísticas: listados, batches, creados, duplicados, inválidos, errores.
+
+| Columna | Tipo | Descripción |
+|---------|------|-------------|
+| `id` | `SERIAL PK` | Identificador interno |
+| `fuente` | `TEXT NOT NULL` | Fuente procesada (ej. 'SRATMA') |
+| `mode` | `TEXT NOT NULL` | Modo: 'backfill', 'tick', 'periodic_backfill' |
+| `started_at` | `TIMESTAMPTZ DEFAULT now()` | Inicio de la ejecución |
+| `finished_at` | `TIMESTAMPTZ NULL` | Fin de la ejecución |
+| `range_from` | `DATE NULL` | Fecha inicial del rango (backfill) |
+| `range_to` | `DATE NULL` | Fecha final del rango (backfill) |
+| `interval_ms` | `INTEGER NULL` | Intervalo entre ticks (tick) |
+| `listed` | `INTEGER NULL` | IDs listados por SRATMA en esta ejecución |
+| `batch` | `INTEGER NULL` | IDs procesados en este lote |
+| `created` | `INTEGER DEFAULT 0` | Registros creados exitosamente |
+| `duplicates` | `INTEGER DEFAULT 0` | IDs ya existentes en DB |
+| `invalid` | `INTEGER DEFAULT 0` | IDs con datos inválidos (sin coordenadas, fecha, etc.) |
+| `errors` | `INTEGER DEFAULT 0` | Errores de red/API |
+| `notes` | `JSONB NULL` | Notas adicionales (ej. IDs restantes) |
+
+**Propósito:** Auditoría completa del pipeline de ingesta. Permite rastrear cuántos accidentes de SRATMA se pierden por datos inválidos y diagnosticar problemas de conectividad.
 
 ---
 
@@ -221,5 +363,48 @@ Registro de cada ejecución del motor de ingesta (backfill/tick). Estadísticas:
 | `CORS_ORIGIN` | `http://localhost:8080` | Origen permitido para CORS |
 
 Ver `docker-compose.yml` para la lista completa de variables de configuración de ingesta.
+
+---
+
+## Evaluación: Dashboard de Visualizaciones
+
+### Opción recomendada: Gráficos integrados en el frontend
+
+Se puede añadir una página de dashboard independiente (ruta `/dashboard`) usando **Chart.js** (CDN, ~60KB gzip) sin depender de servicios externos.
+
+**Ventajas:**
+- Misma paleta de colores y estilo que el mapa y landing (CSS variables `--gold`, `--bg-base`, etc.)
+- Datos en tiempo real vía SSE
+- Sin dependencias externas (no necesita Google Sheets ni Looker Studio)
+- API REST ya expone todos los datos necesarios
+
+**Implementación sugerida (nuevos archivos):**
+- `frontend/dashboard.html` — estructura con header y contenedores de gráficos
+- `frontend/dashboard.js` — lógica con Chart.js, filtros y conexión SSE
+
+**Gráficos viables:**
+
+| Visualización | Fuente de datos |
+|---------------|-----------------|
+| Tarjeta total + gap SRATMA vs BD | `GET /api/accidentes/stats` → `reconcile.sratmaListed, verifiedDbTotal` |
+| Pastel por gravedad | `GET /api/accidentes/stats` → `porGravedad` |
+| Barras por tipo de accidente | `GET /api/accidentes/filtrados?verified=true` → agrupar `tipo` |
+| Tendencia temporal | `GET /api/accidentes/filtrados?verified=true` → agrupar por `fecha` |
+| Top 10 distritos | `GET /api/accidentes/filtrados?verified=true` → agrupar por `distrito` |
+| Heatmap geográfico (Leaflet + heatmap layer) | `GET /api/accidentes/filtrados?verified=true` → `lat, lng` |
+
+**Filtros:** Selector de departamento/provincia/distrito (reutilizar lógica de `map.html`), rango de fechas, gravedad. Todos conectados a `GET /api/accidentes/filtrados?distrito=&gravedad=&verified=true`.
+
+**Navegación:** Botón "Dashboard" en el header de `map.html`, junto al botón de tema. Se puede agregar también desde `index.html` como enlace opcional.
+
+**Ruta de acceso:** `frontend/vercel.json` ya tiene rewrites para servir archivos estáticos, así que `/dashboard` → `dashboard.html` funciona sin configuración adicional.
+
+### Opción alternativa: Google Sheets + Looker Studio
+
+1. Crear un Google Apps Script que consuma `/api/accidentes/filtrados?verified=true` y escriba en una Sheet
+2. Conectar Looker Studio a la Sheet como fuente de datos
+3. Programar actualización cada 15-30 min
+
+**Desventajas:** No es tiempo real, requiere mantenimiento del script, expiración de tokens, no se integra visualmente con la app.
 
 ---
