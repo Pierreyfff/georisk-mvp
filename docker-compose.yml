@@ -1,0 +1,57 @@
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    container_name: georisk-db
+    environment:
+      POSTGRES_DB: georisk
+      POSTGRES_USER: georisk_user
+      POSTGRES_PASSWORD: georisk_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - georisk_db_data:/var/lib/postgresql/data
+      - ./database:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U georisk_user -d georisk"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: georisk-backend
+    environment:
+      PORT: 3000
+      PGHOST: db
+      PGPORT: 5432
+      PGDATABASE: georisk
+      PGUSER: georisk_user
+      PGPASSWORD: georisk_pass
+      SRATMA_INGEST: "on"
+      SRATMA_MAX_PER_TICK: 200
+      SRATMA_INTERVAL_MS: 15000
+      SRATMA_BACKFILL_DEFAULT_DAYS: 90
+      SRATMA_BACKFILL_MAX_DAYS: 365
+      SRATMA_BACKFILL_MAX_PER_DAY: 5000
+      SRATMA_CONCURRENCY: 10
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    image: nginx:alpine
+    container_name: georisk-frontend
+    ports:
+      - "8080:80"
+    volumes:
+      - ./frontend:/usr/share/nginx/html:ro
+      - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - backend
+
+volumes:
+  georisk_db_data:

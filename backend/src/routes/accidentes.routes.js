@@ -6,5 +6,12 @@ const router = express.Router();
 router.get("/", controller.getAll);
 router.post("/", controller.create);
 router.get("/filtrados", controller.getFiltered);
+router.get("/stats", controller.getStats);
+router.get("/reconcile", controller.getReconciliation);
+router.get("/export", controller.exportCsv);
+
+// Auditoría (veracidad)
+router.get("/:id/audit", controller.getAuditById);
+router.get("/external/:fuente/:external_id/audit", controller.getAuditByFuenteExternal);
 
 module.exports = { router };

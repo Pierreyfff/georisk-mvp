@@ -1,4 +1,4 @@
-const { app } = require("./app");
+const app = require("./app");
 require("dotenv").config();
 
 const { startSimulator } = require("./reactive/simulator");
@@ -21,8 +21,9 @@ app.listen(port, () => {
   const sratma = (process.env.SRATMA_INGEST || "off").toLowerCase();
   if (sratma === "on") {
     const intervalMs = Number(process.env.SRATMA_INTERVAL_MS || 20000);
-    startSratmaIngestJob({ intervalMs, concurrency: 5 });
-    console.log(`SRATMA ingest ON cada ${intervalMs}ms`);
+    const concurrency = Number(process.env.SRATMA_CONCURRENCY || 10);
+    startSratmaIngestJob({ intervalMs, concurrency });
+    console.log(`SRATMA ingest ON cada ${intervalMs}ms (concurrency=${concurrency})`);
   } else {
     console.log("SRATMA ingest OFF");
   }

@@ -1,111 +1,404 @@
 <!doctype html>
 <html lang="es">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>GeoRisk Analytics - Mapa</title>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>GeoRisk Analytics</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-base: #05060a;
+      --border: rgba(255,255,255,0.1);
+      --text-primary: #eef0f5;
+      --text-secondary: rgba(238,240,245,0.78);
+      --text-muted: rgba(238,240,245,0.4);
+      --gold: #e9c073;
+      --gold-soft: #c79a5a;
+    }
 
-    <link
-      rel="stylesheet"
-      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-    />
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      background: var(--bg-base);
+      color: var(--text-primary);
+      overflow-x: hidden;
+    }
 
-    <style>
-      body {
-        margin: 0;
-        font-family: system-ui, Arial, sans-serif;
-      }
-      #topbar {
-        padding: 10px 12px;
-        display: flex;
-        gap: 12px;
-        align-items: end;
-        border-bottom: 1px solid #ddd;
-      }
-      #map {
-        height: calc(100vh - 78px);
-      }
-      label {
-        display: block;
-        font-size: 12px;
-        color: #333;
-      }
-      select {
-        padding: 6px;
-      }
-      #kpis {
-        margin-left: auto;
-        font-size: 13px;
-      }
-      .kpi {
-        display: inline-block;
-        margin-left: 12px;
-      }
-      .dot {
-        display: inline-block;
-        width: 10px;
-        height: 10px;
-        border-radius: 50%;
-        margin-right: 6px;
-        vertical-align: middle;
-      }
-    </style>
-  </head>
-  <body>
-    <div id="topbar">
-      <div>
-        <label>Distrito</label>
-        <select id="distrito">
-          <option value="">(Todos)</option>
-          <option value="150122">Miraflores</option>
-          <option value="150131">San Isidro</option>
-          <option value="150140">Santiago de Surco</option>
-          <option value="150115">La Victoria</option>
-          <option value="150808">Lima</option>
-          <option value="150133">San Juan de Miraflores</option>
-          <option value="SRATMA">SRATMA (Perú)</option>
-        </select>
+    canvas#bg {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      display: block;
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    #shaderError {
+      position: fixed;
+      top: 12px; left: 12px;
+      z-index: 999;
+      color: #2ecc71;
+      font-size: 12px;
+      font-family: monospace;
+      white-space: pre-wrap;
+      pointer-events: none;
+    }
+
+    /* ===== Hero ===== */
+
+    .hero {
+      position: relative;
+      z-index: 1;
+      min-height: 50vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 2rem;
+      pointer-events: none;
+    }
+    .hero * { pointer-events: auto; }
+
+    .hero h1 {
+      font-size: clamp(3.4rem, 10vw, 7rem);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      color: #fff;
+      line-height: 1;
+      margin-bottom: 1.6rem;
+    }
+    .hero h1 .accent { color: var(--gold); }
+
+    .hero .desc {
+      font-size: clamp(1rem, 1.6vw, 1.15rem);
+      font-weight: 400;
+      color: var(--text-secondary);
+      line-height: 1.6;
+      max-width: 560px;
+      margin: 0 auto 2.6rem;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.95rem 3rem;
+      font-family: inherit;
+      font-size: 1rem;
+      font-weight: 600;
+      color: #221a0c;
+      background: var(--gold);
+      border: none;
+      border-radius: 999px;
+      cursor: pointer;
+      text-decoration: none;
+      transition: background 0.2s, transform 0.2s;
+    }
+    .btn:hover { background: var(--gold-soft); transform: translateY(-2px); }
+    .btn:active { transform: scale(0.97); }
+
+    .hero-divider {
+      display: flex;
+      align-items: center;
+      gap: 1.2rem;
+      width: 100%;
+      max-width: 480px;
+      margin-top: 2.6rem;
+    }
+    .hero-divider .line {
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    /* ===== Info section ===== */
+
+    .section-info {
+      position: relative;
+      z-index: 1;
+      padding: 2rem 1.5rem 5rem;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    .section-info h2 {
+      font-size: clamp(1.3rem, 2.4vw, 1.7rem);
+      font-weight: 700;
+      color: var(--gold);
+      margin-bottom: 0.8rem;
+      text-align: center;
+    }
+
+    .section-info .lead {
+      text-align: center;
+      color: var(--text-primary);
+      font-weight: 400;
+      font-size: clamp(0.95rem, 1.4vw, 1.05rem);
+      margin-bottom: 3.5rem;
+    }
+
+    .content-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4rem;
+      flex-wrap: wrap;
+    }
+
+    .map-wrap {
+      flex-shrink: 0;
+    }
+    .map-wrap img {
+      width: 400px;
+      height: auto;
+      display: block;
+      filter: grayscale(1) brightness(1.7);
+      opacity: 0.9;
+      transition: filter 0.3s, opacity 0.3s, transform 0.3s;
+      transform: scale(1.6);
+      transform-origin: right center;
+    }
+    .map-wrap img:hover {
+      filter: grayscale(0.6) brightness(1.8) drop-shadow(0 0 24px rgba(233,192,115,0.2));
+      opacity: 1;
+    }
+
+    .feature-list {
+      display: flex;
+      flex-direction: column;
+      gap: 1.1rem;
+      width: 100%;
+      max-width: 340px;
+    }
+
+    .section-info .lead {
+      margin-bottom: 2.8rem;
+    }
+
+    .stats-strip {
+      display: flex;
+      justify-content: center;
+      gap: 2rem;
+      flex-wrap: wrap;
+      margin-bottom: 3rem;
+    }
+    .stat-item {
+      display: flex;
+      align-items: center;
+      gap: 0.7rem;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 0.8rem 1.2rem;
+      min-width: 160px;
+    }
+    .stat-item svg {
+      width: 20px;
+      height: 20px;
+      stroke: var(--gold);
+      fill: none;
+      flex-shrink: 0;
+    }
+    .stat-item .stat-body { display: flex; flex-direction: column; }
+    .stat-item .stat-value {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      font-variant-numeric: tabular-nums;
+    }
+    .stat-item .stat-label {
+      font-size: 0.68rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .feature-card {
+      border-radius: 18px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.04);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      padding: 1.2rem 1.6rem;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .feature-card:hover {
+      border-color: rgba(255,255,255,0.18);
+      background: rgba(255,255,255,0.07);
+    }
+    .feature-card-header {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      margin-bottom: 0.4rem;
+    }
+    .feature-card-header svg {
+      width: 18px;
+      height: 18px;
+      stroke: var(--gold);
+      fill: none;
+      flex-shrink: 0;
+    }
+    .feature-card-title {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    .feature-card-desc {
+      font-size: 0.82rem;
+      color: var(--text-secondary);
+      line-height: 1.5;
+      display: block;
+    }
+
+    .site-footer {
+      text-align: center;
+      padding: 1.5rem 0 3rem;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+    }
+
+    /* ===== fade-in ===== */
+
+    .fade-in {
+      opacity: 0;
+      transform: translateY(18px);
+      transition: opacity 0.6s ease, transform 0.6s ease;
+    }
+    .fade-in.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    @media (max-width: 768px) {
+      .content-row { flex-direction: column; gap: 2.8rem; }
+      .map-wrap img { width: 320px; transform: scale(1.35); }
+    }
+
+    @media (max-width: 640px) {
+      .hero { padding: 3rem 1rem; }
+      .hero h1 { font-size: 2.4rem; }
+      .hero .desc { font-size: 0.88rem; max-width: 300px; }
+      .btn { padding: 0.75rem 2rem; font-size: 0.85rem; }
+      .section-info { padding: 1.5rem 1rem 3rem; }
+      .section-info h2 { font-size: 1.4rem; }
+      .section-info .lead { font-size: 0.85rem; }
+      .content-row { flex-direction: column; gap: 2.2rem; }
+      .map-wrap img { width: 260px; transform: scale(1.25); }
+      .feature-list { max-width: 100%; }
+      .stats-strip { gap: 0.6rem; flex-direction: column; align-items: center; }
+      .stat-item { min-width: 200px; padding: 0.5rem 0.8rem; }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="bg"></canvas>
+  <pre id="shaderError"></pre>
+
+  <section class="hero">
+    <h1>Geo<span class="accent">Risk</span></h1>
+    <p class="desc">
+      Una herramienta para el an&aacute;lisis y monitoreo de accidentes
+      de tr&aacute;nsito en el Per&uacute;.
+    </p>
+    <a href="/map" class="btn">Ir al mapa</a>
+    <div class="hero-divider">
+      <span class="line"></span>
+      <span class="line"></span>
+    </div>
+  </section>
+
+  <section class="section-info" id="info">
+    <h2 class="fade-in">Monitoreo nacional en tiempo real</h2>
+    <p class="lead fade-in">Datos abiertos del Sistema de Registro de Accidentes de Tr&aacute;nsito del MTC.</p>
+
+    <div class="stats-strip fade-in">
+      <div class="stat-item">
+        <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+        </svg>
+        <div class="stat-body">
+          <span class="stat-value" id="statTotal">—</span>
+          <span class="stat-label">Accidentes registrados</span>
+        </div>
       </div>
-
-      <div>
-        <label>Gravedad</label>
-        <select id="gravedad">
-          <option value="">(Todas)</option>
-          <option>Baja</option>
-          <option>Media</option>
-          <option>Alta</option>
-        </select>
+      <div class="stat-item">
+        <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/>
+          <path d="M2 12h20"/>
+          <ellipse cx="12" cy="12" rx="4" ry="10"/>
+        </svg>
+        <div class="stat-body">
+          <span class="stat-value" id="statDepartamentos">—</span>
+          <span class="stat-label">Departamentos</span>
+        </div>
       </div>
-
-      <div>
-        <button id="btnCargar">Cargar</button>
-      </div>
-
-      <div id="kpis">
-        <span class="kpi"
-          ><span class="dot" style="background: #444"></span>Total:
-          <b id="kpiTotal">0</b></span
-        >
-        <span class="kpi"
-          ><span class="dot" style="background: #2ecc71"></span>Baja:
-          <b id="kpiBaja">0</b></span
-        >
-        <span class="kpi"
-          ><span class="dot" style="background: #f1c40f"></span>Media:
-          <b id="kpiMedia">0</b></span
-        >
-        <span class="kpi"
-          ><span class="dot" style="background: #e74c3c"></span>Alta:
-          <b id="kpiAlta">0</b></span
-        >
-        <span class="kpi">Promedio: <b id="kpiProm">0</b></span>
+      <div class="stat-item">
+        <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/>
+          <polyline points="12 6 12 12 16 14"/>
+        </svg>
+        <div class="stat-body">
+          <span class="stat-value" id="ultimaActualizacion">Cargando...</span>
+          <span class="stat-label">Última actualización</span>
+        </div>
       </div>
     </div>
 
-    <div id="map"></div>
+    <div class="content-row fade-in">
+      <div class="map-wrap">
+        <picture>
+          <source srcset="./images/map2-removebg-preview.webp" type="image/webp">
+          <img src="./images/map2-removebg-preview.png" alt="Mapa del Perú" />
+        </picture>
+      </div>
 
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="./vendor/osmtogeojson.js"></script>
-    <script type="module" src="./app.js"></script>
-  </body>
+      <div class="feature-list">
+        <div class="feature-card">
+          <div class="feature-card-header">
+            <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+            </svg>
+            <span class="feature-card-title">Monitoreo continuo</span>
+          </div>
+          <span class="feature-card-desc">
+            Los datos se actualizan en tiempo real desde la fuente oficial del MTC (SRATMA), consultando cada 15 segundos nuevos registros de accidentes de tr&aacute;nsito en todo el pa&iacute;s.
+          </span>
+        </div>
+        <div class="feature-card">
+          <div class="feature-card-header">
+            <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            </svg>
+            <span class="feature-card-title">Clasificaci&oacute;n de gravedad</span>
+          </div>
+          <span class="feature-card-desc">
+            GeoRisk clasifica cada accidente seg&uacute;n el n&uacute;mero de v&iacute;ctimas reportadas: Alta si hubo fallecidos, Media si hubo lesionados, Baja en el resto de casos.
+          </span>
+        </div>
+        <div class="feature-card">
+          <div class="feature-card-header">
+            <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+              <circle cx="12" cy="10" r="3"/>
+            </svg>
+            <span class="feature-card-title">Cobertura nacional</span>
+          </div>
+          <span class="feature-card-desc">
+            Datos geoespaciales organizados por departamento, provincia y distrito, con visualizaci&oacute;n interactiva en mapa y delimitaci&oacute;n de fronteras administrativas.
+          </span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="site-footer fade-in">
+    Desarrollado por Pierre Borjas Espinoza &mdash; Proyecto Acad&eacute;mico
+  </footer>
+
+  <script src="./landing.js"></script>
+</body>
 </html>
