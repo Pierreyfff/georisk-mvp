@@ -120,7 +120,7 @@
       position: fixed; bottom: 16px; left: 16px; z-index: 200;
       width: 40px; height: 40px; border-radius: 50%;
       border: 1px solid var(--border); background: var(--bg-card);
-      color: var(--text-primary); font-size: 18px; cursor: pointer;
+      color: var(--text-primary); cursor: pointer;
       align-items: center; justify-content: center;
       transition: background 0.2s;
     }
@@ -155,8 +155,8 @@
       width: 36px; height: 36px; border-radius: 8px;
       display: flex; align-items: center; justify-content: center;
       flex-shrink: 0;
-      font-size: 16px;
     }
+    .kpi-card .kpi-icon svg { width: 18px; height: 18px; stroke-width: 1.8; }
     .kpi-card .kpi-body { min-width: 0; }
     .kpi-card .kpi-value {
       font-size: 18px; font-weight: 700; line-height: 1.1;
@@ -356,34 +356,44 @@
       <button class="btn-clear" id="clearFilters">Limpiar filtros</button>
     </aside>
 
-    <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle filters">⚙</button>
+    <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle filters">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" width="18" height="18" stroke-width="2"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/><circle cx="8" cy="6" r="2" fill="currentColor"/><circle cx="16" cy="12" r="2" fill="currentColor"/><circle cx="10" cy="18" r="2" fill="currentColor"/></svg>
+    </button>
 
     <div class="main">
       <!-- KPIs -->
       <div class="kpi-row" id="kpiRow">
         <div class="kpi-card">
-          <div class="kpi-icon" style="background:rgba(233,192,115,0.12);color:var(--gold);">📊</div>
+          <div class="kpi-icon" style="background:rgba(233,192,115,0.12);color:var(--gold);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>
+          </div>
           <div class="kpi-body">
             <div class="kpi-value" id="kpiTotal">—</div>
             <div class="kpi-label">Total SRATMA</div>
           </div>
         </div>
         <div class="kpi-card">
-          <div class="kpi-icon" style="background:rgba(58,123,213,0.12);color:var(--blue);">🗺</div>
+          <div class="kpi-icon" style="background:rgba(58,123,213,0.12);color:var(--blue);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+          </div>
           <div class="kpi-body">
             <div class="kpi-value" id="kpiVerified">—</div>
             <div class="kpi-label">Verificados en BD</div>
           </div>
         </div>
         <div class="kpi-card">
-          <div class="kpi-icon" style="background:rgba(46,204,113,0.12);color:var(--green);">🟢</div>
+          <div class="kpi-icon" style="background:rgba(46,204,113,0.12);color:var(--green);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          </div>
           <div class="kpi-body">
             <div class="kpi-value" id="kpiBaja">—</div>
             <div class="kpi-label">Gravedad Baja</div>
           </div>
         </div>
         <div class="kpi-card">
-          <div class="kpi-icon" style="background:rgba(231,76,60,0.12);color:var(--red);">🔴</div>
+          <div class="kpi-icon" style="background:rgba(231,76,60,0.12);color:var(--red);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          </div>
           <div class="kpi-body">
             <div class="kpi-value" id="kpiAlta">—</div>
             <div class="kpi-label">Gravedad Alta</div>
