@@ -99,6 +99,13 @@
     }
     .btn:hover { background: var(--gold-soft); transform: translateY(-2px); }
     .btn:active { transform: scale(0.97); }
+    .btn-row { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; pointer-events: auto; }
+    .btn-outline {
+      background: transparent;
+      border: 1.5px solid var(--gold);
+      color: var(--gold);
+    }
+    .btn-outline:hover { background: rgba(233,192,115,0.1); transform: translateY(-2px); }
 
     .hero-divider {
       display: flex;
@@ -304,7 +311,10 @@
       Una herramienta para el an&aacute;lisis y monitoreo de accidentes
       de tr&aacute;nsito en el Per&uacute;.
     </p>
-    <a href="/map" class="btn">Ir al mapa</a>
+    <div class="btn-row">
+      <a href="/map" class="btn">Ir al mapa</a>
+      <a href="/dashboard" class="btn btn-outline">Dashboard</a>
+    </div>
     <div class="hero-divider">
       <span class="line"></span>
       <span class="line"></span>

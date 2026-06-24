@@ -1,0 +1,481 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>GeoRisk - Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg-base: #05060a;
+      --bg-surface: #080b17;
+      --bg-card: #0c1020;
+      --bg-input: #121834;
+      --border: rgba(255,255,255,0.1);
+      --text-primary: #eef0f5;
+      --text-secondary: rgba(238,240,245,0.78);
+      --text-muted: rgba(238,240,245,0.4);
+      --gold: #e9c073;
+      --gold-soft: #c79a5a;
+      --green: #2ecc71;
+      --red: #e74c3c;
+      --yellow: #f1c40f;
+      --purple: #8a4fc9;
+      --blue: #3a7bd5;
+      --cyan: #22b8c8;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100vh; height: 100dvh; overflow: hidden; background: var(--bg-base); font-family: 'Inter', -apple-system, sans-serif; color: var(--text-primary); }
+
+    /* ===== Header ===== */
+    header {
+      height: 48px; min-height: 48px;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 16px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-surface);
+      z-index: 100; position: relative;
+    }
+    header .brand { font-size: 14px; font-weight: 700; letter-spacing: -0.01em; }
+    header .brand em { color: var(--gold); font-style: normal; }
+    header .brand small { font-weight: 400; color: var(--text-muted); font-size: 11px; margin-left: 6px; }
+    header nav { display: flex; align-items: center; gap: 8px; }
+    header nav a {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 6px 14px; border-radius: 8px;
+      font-size: 12px; font-weight: 500; text-decoration: none;
+      transition: background 0.2s;
+    }
+    header nav a.map-link {
+      color: var(--text-secondary); background: var(--bg-card);
+      border: 1px solid var(--border);
+    }
+    header nav a.map-link:hover { background: rgba(255,255,255,0.08); }
+    header nav a.dash-link {
+      color: #221a0c; background: var(--gold);
+      border: 1px solid var(--gold);
+    }
+    header nav a.dash-link:hover { background: var(--gold-soft); }
+
+    /* ===== Layout ===== */
+    .layout {
+      display: flex;
+      height: calc(100vh - 48px); height: calc(100dvh - 48px);
+      overflow: hidden;
+    }
+
+    /* ===== Sidebar ===== */
+    .sidebar {
+      width: 240px; min-width: 240px;
+      background: var(--bg-surface);
+      border-right: 1px solid var(--border);
+      padding: 14px 14px 10px;
+      display: flex; flex-direction: column;
+      gap: 8px;
+      overflow-y: auto;
+    }
+    .sidebar::-webkit-scrollbar { width: 4px; }
+    .sidebar::-webkit-scrollbar-track { background: transparent; }
+    .sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    .sidebar h3 {
+      font-size: 10px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.06em; color: var(--text-muted);
+      margin-bottom: 2px;
+    }
+
+    .sidebar label {
+      font-size: 10px; font-weight: 500; color: var(--text-secondary);
+      display: block; margin-bottom: 2px;
+    }
+
+    .sidebar select, .sidebar input {
+      width: 100%; padding: 6px 8px;
+      border-radius: 6px; border: 1px solid var(--border);
+      background: var(--bg-input);
+      color: var(--text-primary);
+      font-size: 11px; font-family: inherit;
+      outline: none; transition: border-color 0.2s;
+    }
+    .sidebar select:focus, .sidebar input:focus { border-color: var(--gold); }
+    .sidebar select option { background: var(--bg-card); color: var(--text-primary); }
+
+    .sidebar .btn-clear {
+      margin-top: auto; padding: 7px 12px;
+      border-radius: 6px; border: 1px solid var(--border);
+      background: transparent; color: var(--text-muted);
+      font-size: 11px; font-family: inherit; cursor: pointer;
+      transition: background 0.2s, color 0.2s;
+    }
+    .sidebar .btn-clear:hover { background: rgba(255,255,255,0.05); color: var(--text-primary); }
+
+    .sidebar .filter-group { display: flex; flex-direction: column; gap: 3px; }
+
+    .sidebar-toggle {
+      display: none;
+      position: fixed; bottom: 16px; left: 16px; z-index: 200;
+      width: 40px; height: 40px; border-radius: 50%;
+      border: 1px solid var(--border); background: var(--bg-card);
+      color: var(--text-primary); font-size: 18px; cursor: pointer;
+      align-items: center; justify-content: center;
+      transition: background 0.2s;
+    }
+    .sidebar-toggle:hover { background: rgba(255,255,255,0.08); }
+
+    /* ===== Main ===== */
+    .main {
+      flex: 1; min-width: 0;
+      display: flex; flex-direction: column;
+      padding: 10px 14px 10px 14px;
+      gap: 8px;
+      overflow: hidden;
+    }
+
+    /* ===== KPIs ===== */
+    .kpi-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      min-height: 0;
+    }
+    .kpi-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 14px;
+      display: flex; align-items: center; gap: 12px;
+      transition: border-color 0.2s;
+    }
+    .kpi-card:hover { border-color: rgba(255,255,255,0.18); }
+    .kpi-card .kpi-icon {
+      width: 36px; height: 36px; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      font-size: 16px;
+    }
+    .kpi-card .kpi-body { min-width: 0; }
+    .kpi-card .kpi-value {
+      font-size: 18px; font-weight: 700; line-height: 1.1;
+      font-variant-numeric: tabular-nums;
+    }
+    .kpi-card .kpi-label {
+      font-size: 9px; color: var(--text-muted);
+      text-transform: uppercase; letter-spacing: 0.04em;
+      margin-top: 1px;
+    }
+
+    /* ===== Tabs ===== */
+    .tabs {
+      display: flex; gap: 4px;
+      min-height: 0; flex-shrink: 0;
+    }
+    .tabs button {
+      padding: 6px 18px; border-radius: 8px 8px 0 0;
+      border: none; background: transparent;
+      color: var(--text-muted); font-size: 11px; font-weight: 500;
+      font-family: inherit; cursor: pointer;
+      transition: background 0.2s, color 0.2s;
+      border-bottom: 2px solid transparent;
+    }
+    .tabs button:hover { color: var(--text-secondary); background: rgba(255,255,255,0.03); }
+    .tabs button.active { color: var(--gold); border-bottom-color: var(--gold); background: rgba(233,192,115,0.06); }
+
+    /* ===== Charts area ===== */
+    .charts-area {
+      flex: 1; min-height: 0;
+      display: flex; flex-direction: column;
+      position: relative;
+    }
+    .chart-panel {
+      display: none;
+      flex: 1; min-height: 0;
+      gap: 8px;
+    }
+    .chart-panel.active { display: flex; }
+
+    .chart-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 1fr 1fr;
+      gap: 8px;
+      flex: 1; min-height: 0;
+    }
+    .chart-grid.single-col { grid-template-columns: 1fr; grid-template-rows: 1fr; }
+    .chart-grid.three-col { grid-template-columns: 1fr 1fr 1fr; }
+    .chart-box {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 8px 10px 6px;
+      display: flex; flex-direction: column;
+      min-height: 0;
+      overflow: hidden;
+    }
+    .chart-box .chart-title {
+      font-size: 10px; font-weight: 600; color: var(--text-secondary);
+      margin-bottom: 4px; flex-shrink: 0;
+    }
+    .chart-box .chart-wrap {
+      flex: 1; min-height: 0;
+      position: relative;
+    }
+    .chart-box .chart-wrap canvas {
+      width: 100% !important; height: 100% !important;
+    }
+
+    /* ===== Table (Resultados) ===== */
+    .table-wrap {
+      flex: 1; min-height: 0;
+      overflow: auto;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+    }
+    .table-wrap::-webkit-scrollbar { width: 4px; height: 4px; }
+    .table-wrap::-webkit-scrollbar-track { background: transparent; }
+    .table-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 11px; }
+    thead { position: sticky; top: 0; z-index: 1; }
+    th {
+      background: var(--bg-surface); color: var(--text-muted);
+      font-weight: 600; text-transform: uppercase; font-size: 9px;
+      letter-spacing: 0.04em; padding: 8px 10px; text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    td { padding: 6px 10px; border-bottom: 1px solid rgba(255,255,255,0.04); color: var(--text-secondary); }
+    tr:hover td { background: rgba(255,255,255,0.02); }
+    .sev-badge {
+      display: inline-block; padding: 1px 8px; border-radius: 10px;
+      font-size: 9px; font-weight: 600;
+    }
+    .sev-baja { background: rgba(46,204,113,0.15); color: var(--green); }
+    .sev-media { background: rgba(241,196,15,0.15); color: var(--yellow); }
+    .sev-alta { background: rgba(231,76,60,0.15); color: var(--red); }
+
+    /* ===== Loading / Error ===== */
+    .loading-overlay {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(5,6,10,0.7);
+      z-index: 10;
+    }
+    .loading-overlay .spinner {
+      width: 28px; height: 28px;
+      border: 2px solid var(--border);
+      border-top-color: var(--gold);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .error-overlay {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+      background: rgba(5,6,10,0.8);
+      z-index: 10;
+      color: var(--text-secondary); font-size: 13px;
+    }
+    .error-overlay .btn-retry {
+      padding: 6px 16px; border-radius: 6px;
+      border: 1px solid var(--border); background: var(--bg-card);
+      color: var(--text-primary); font-size: 11px; font-family: inherit; cursor: pointer;
+    }
+    .error-overlay .btn-retry:hover { background: rgba(255,255,255,0.08); }
+
+    /* ===== Responsive ===== */
+    @media (max-width: 1024px) {
+      .kpi-row { grid-template-columns: repeat(2, 1fr); }
+      .chart-grid { grid-template-columns: 1fr; grid-template-rows: auto; }
+    }
+    @media (max-width: 768px) {
+      .sidebar {
+        position: fixed; top: 48px; left: 0; bottom: 0;
+        z-index: 150; transform: translateX(-100%);
+        transition: transform 0.25s ease;
+      }
+      .sidebar.open { transform: translateX(0); }
+      .sidebar-toggle { display: flex; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">Geo<span class="gold">Risk</span> <small>• Dashboard Analítico</small></div>
+    <nav>
+      <a href="/map" class="map-link">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+        Ir al mapa
+      </a>
+    </nav>
+  </header>
+
+  <div class="layout">
+    <aside class="sidebar" id="sidebar">
+      <h3>Filtros</h3>
+
+      <div class="filter-group">
+        <label for="filterDept">Departamento</label>
+        <select id="filterDept"><option value="">Todos</option></select>
+      </div>
+
+      <div class="filter-group">
+        <label for="filterProv">Provincia</label>
+        <select id="filterProv" disabled><option value="">Todos</option></select>
+      </div>
+
+      <div class="filter-group">
+        <label for="filterDist">Distrito</label>
+        <select id="filterDist" disabled><option value="">Todos</option></select>
+      </div>
+
+      <div class="filter-group">
+        <label for="filterGrav">Gravedad</label>
+        <select id="filterGrav">
+          <option value="">Todas</option>
+          <option value="Baja">Baja</option>
+          <option value="Media">Media</option>
+          <option value="Alta">Alta</option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label for="filterFrom">Desde</label>
+        <input type="date" id="filterFrom">
+      </div>
+
+      <div class="filter-group">
+        <label for="filterTo">Hasta</label>
+        <input type="date" id="filterTo">
+      </div>
+
+      <button class="btn-clear" id="clearFilters">Limpiar filtros</button>
+    </aside>
+
+    <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle filters">⚙</button>
+
+    <div class="main">
+      <!-- KPIs -->
+      <div class="kpi-row" id="kpiRow">
+        <div class="kpi-card">
+          <div class="kpi-icon" style="background:rgba(233,192,115,0.12);color:var(--gold);">📊</div>
+          <div class="kpi-body">
+            <div class="kpi-value" id="kpiTotal">—</div>
+            <div class="kpi-label">Total SRATMA</div>
+          </div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-icon" style="background:rgba(58,123,213,0.12);color:var(--blue);">🗺</div>
+          <div class="kpi-body">
+            <div class="kpi-value" id="kpiVerified">—</div>
+            <div class="kpi-label">Verificados en BD</div>
+          </div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-icon" style="background:rgba(46,204,113,0.12);color:var(--green);">🟢</div>
+          <div class="kpi-body">
+            <div class="kpi-value" id="kpiBaja">—</div>
+            <div class="kpi-label">Gravedad Baja</div>
+          </div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-icon" style="background:rgba(231,76,60,0.12);color:var(--red);">🔴</div>
+          <div class="kpi-body">
+            <div class="kpi-value" id="kpiAlta">—</div>
+            <div class="kpi-label">Gravedad Alta</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tabs -->
+      <div class="tabs" id="tabs">
+        <button class="active" data-tab="resumen">Resumen</button>
+        <button data-tab="analisis">Análisis</button>
+        <button data-tab="resultados">Resultados</button>
+      </div>
+
+      <!-- Charts -->
+      <div class="charts-area" id="chartsArea">
+        <div class="loading-overlay" id="loadingOverlay"><div class="spinner"></div></div>
+
+        <!-- Resumen -->
+        <div class="chart-panel active" id="panelResumen">
+          <div class="chart-grid">
+            <div class="chart-box">
+              <div class="chart-title">Distribución por gravedad</div>
+              <div class="chart-wrap"><canvas id="chartSeveridad"></canvas></div>
+            </div>
+            <div class="chart-box">
+              <div class="chart-title">Top tipos de accidente</div>
+              <div class="chart-wrap"><canvas id="chartTipos"></canvas></div>
+            </div>
+            <div class="chart-box">
+              <div class="chart-title">Tendencia diaria</div>
+              <div class="chart-wrap"><canvas id="chartTendencia"></canvas></div>
+            </div>
+            <div class="chart-box">
+              <div class="chart-title">Top departamentos</div>
+              <div class="chart-wrap"><canvas id="chartDeptos"></canvas></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Análisis -->
+        <div class="chart-panel" id="panelAnalisis">
+          <div class="chart-grid">
+            <div class="chart-box">
+              <div class="chart-title">Accidentes por departamento</div>
+              <div class="chart-wrap"><canvas id="chartAnalisisDeptos"></canvas></div>
+            </div>
+            <div class="chart-box">
+              <div class="chart-title">Severidad por departamento</div>
+              <div class="chart-wrap"><canvas id="chartSeveridadDeptos"></canvas></div>
+            </div>
+            <div class="chart-box">
+              <div class="chart-title">Accidentes por hora del día</div>
+              <div class="chart-wrap"><canvas id="chartHora"></canvas></div>
+            </div>
+            <div class="chart-box">
+              <div class="chart-title">Promedio de gravedad por día</div>
+              <div class="chart-wrap"><canvas id="chartPromedio"></canvas></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Resultados -->
+        <div class="chart-panel" id="panelResultados">
+          <div class="chart-grid single-col">
+            <div class="chart-box">
+              <div class="chart-title">Registros detallados</div>
+              <div class="table-wrap" id="tableWrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Fecha</th>
+                      <th>Hora</th>
+                      <th>Distrito</th>
+                      <th>Departamento</th>
+                      <th>Tipo</th>
+                      <th>Gravedad</th>
+                      <th>Fallecidos</th>
+                      <th>Lesionados</th>
+                    </tr>
+                  </thead>
+                  <tbody id="tableBody"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="./dashboard.js"></script>
+</body>
+</html>
